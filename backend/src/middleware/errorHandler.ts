@@ -1,27 +1,37 @@
-import type {
-  ErrorRequestHandler,
-  NextFunction,
-  Request,
-  Response,
-} from "express";
+import type { ErrorRequestHandler } from "express";
 
 import { env } from "../config/env.js";
+import { ZodError } from "zod";
 
-export function errorHandler(
-  error: Error,
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void {
-  const statuscode =
-    "statusCode" in error && typeof error.statusCode === "number"
-      ? error.statusCode
-      : 500;
-  const message = statuscode === 500 ? "internal server error" : error.message;
+import { AppError } from "../common/errors/AppError.js";
 
-  res.status(statuscode).json({
+export const errorHandler: ErrorRequestHandler = (
+  error, req, res, next
+) => {
+  if(error instanceof ZodError) {
+    res.status(400).json({
+      success: false,
+      message: "Validation error",
+      errors: error.issues.map((issue) => ({
+        message: issue.message,
+      })),
+    });
+    return;
+  }
+
+  if(error instanceof AppError) {
+    res.status(error.statusCode).json({
+      success: false,
+      message: error.message,
+    });
+    return;
+  }
+
+  console.error(error);
+
+  res.status(500).json({
     success: false,
-    message,
+    message: "internal server error",
     ...(env.nodeEnv === "development" && {
       stack: error.stack,
     }),
