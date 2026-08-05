@@ -11,8 +11,9 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import { prisma } from "./lib/prisma.js";
 
 import authRouter from "./modules/auth/auth.routes.js";
-
 import adminRouter from "./modules/admin/admin.routes.js";
+
+import propertyRouter from "./modules/properties/property.routes.js";
 
 const app = express();
 
@@ -56,6 +57,9 @@ app.get("/api/v1/health/database", async(req, res, next) => {
 app.use('/api/v1/auth', authRouter);
 
 app.use('/api/v1/admin', adminRouter);
+
+app.use('/api/v1/properties', propertyRouter);
+
 
 // Handles routes that are not found
 app.use(notFound);

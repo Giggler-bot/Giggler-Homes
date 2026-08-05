@@ -1431,3 +1431,140 @@ A valid JWT does not automatically give a user permission to access every route.
 ### Result
 
 Role-Based Access Control is working correctly. The backend can now restrict API endpoints according to user roles.
+
+## Phase 7B — Property Ownership Authorization
+
+**Status:** Complete
+
+### Goal
+
+Implement ownership-based authorization to ensure that users can only manage properties they own, while allowing administrators to manage any property.
+
+### Problem Solved
+
+Role-Based Access Control alone is not sufficient for resource protection.
+
+For example, two users may both have the `OWNER` role:
+
+```text
+Owner A
+└── Property A
+
+Owner B
+└── Property B
+```
+
+Both users are authorized to access owner-level property routes, but Owner B must not be allowed to update or delete Property A.
+
+Ownership authorization adds a resource-level permission check.
+
+### Authorization Rule
+
+Access is allowed when:
+
+```text
+Authenticated user owns the property
+                OR
+Authenticated user has the ADMIN role
+```
+
+Otherwise, the request is rejected with:
+
+```http
+403 Forbidden
+```
+
+### Files Added
+
+```text
+src/middleware/authorizePropertyOwner.ts
+
+src/modules/properties/property.controller.ts
+
+src/modules/properties/property.routes.ts
+
+src/scripts/createTestProperty.ts
+```
+
+### Files Updated
+
+```text
+src/app.ts
+
+prisma/schema.prisma
+```
+
+### Property Ownership Middleware
+
+The middleware performs the following checks:
+
+1. Confirms that the request contains an authenticated user.
+2. Retrieves the property ID from the route parameters.
+3. Finds the property in the database.
+4. Retrieves the property's `ownerId`.
+5. Compares `property.ownerId` with `req.user.id`.
+6. Allows access when the user owns the property.
+7. Allows access when the user has the `ADMIN` role.
+8. Returns `403 Forbidden` when the user is neither the owner nor an administrator.
+9. Returns `404 Not Found` when the property does not exist.
+
+### Protected Test Route
+
+| Method | Endpoint                         | Allowed roles              |
+| ------ | -------------------------------- | -------------------------- |
+| PATCH  | `/api/v1/properties/:propertyId` | `OWNER`, `AGENCY`, `ADMIN` |
+
+### Middleware Order
+
+```text
+Request
+  ↓
+authenticate
+  ↓
+Verify JWT
+  ↓
+Attach user information to req.user
+  ↓
+authorizeRoles
+  ↓
+Check whether the user's role is allowed
+  ↓
+authorizePropertyOwner
+  ↓
+Check whether the user owns the property
+  ↓
+Controller
+```
+
+### Test Results
+
+| Scenario                        |    Expected result | Result |
+| ------------------------------- | -----------------: | -----: |
+| Request without an access token | `401 Unauthorized` | Passed |
+| Authenticated `USER`            |    `403 Forbidden` | Passed |
+| Property owner                  |           `200 OK` | Passed |
+| Different property owner        |    `403 Forbidden` | Passed |
+| Authenticated `ADMIN`           |           `200 OK` | Passed |
+
+### Test Property Creation
+
+A temporary Prisma script was created to insert a test property into the database.
+
+The script uses Prisma Client to create the property and automatically generates a UUID through the Prisma schema:
+
+```prisma
+id String @id @default(uuid())
+```
+
+This avoided manually entering a property ID in Prisma Studio.
+
+### Result
+
+Property ownership authorization is working correctly.
+
+The backend now supports both:
+
+* Role-level authorization
+* Resource ownership authorization
+
+This provides a secure foundation for the upcoming Property module.
