@@ -1367,6 +1367,7 @@ or:
 authorizeRoles(
   "OWNER",
   "AGENCY",
+  "HOTEL",
   "ADMIN",
 );
 ```
