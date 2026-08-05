@@ -1307,6 +1307,7 @@ Create a reusable Role-Based Access Control (RBAC) middleware that restricts acc
   * `USER`
   * `OWNER`
   * `AGENCY`
+  * `HOTEL`
   * `ADMIN`
 * Reusable `authorizeRoles()` middleware
 * Admin-only test endpoint
