@@ -630,7 +630,7 @@ Current planned roles:
 ```text
 USER
 OWNER
-AGENT
+AGENCY
 ADMIN
 ```
 
@@ -1166,7 +1166,7 @@ Planned roles:
 ```text
 USER
 OWNER
-AGENT
+AGENCY
 ADMIN
 ```
 
@@ -1181,7 +1181,7 @@ Example:
 ```ts
 authorizeRoles(
   "OWNER",
-  "AGENT",
+  "AGENCY",
   "ADMIN",
 );
 ```
@@ -1198,7 +1198,7 @@ router.post(
   authenticate,
   authorizeRoles(
     "OWNER",
-    "AGENT",
+    "AGENCY",
     "ADMIN",
   ),
   createPropertyController,
@@ -1306,7 +1306,7 @@ Create a reusable Role-Based Access Control (RBAC) middleware that restricts acc
 
   * `USER`
   * `OWNER`
-  * `AGENT`
+  * `AGENCY`
   * `ADMIN`
 * Reusable `authorizeRoles()` middleware
 * Admin-only test endpoint
@@ -1366,7 +1366,7 @@ or:
 ```ts
 authorizeRoles(
   "OWNER",
-  "AGENT",
+  "AGENCY",
   "ADMIN",
 );
 ```
