@@ -12,6 +12,8 @@ import { prisma } from "./lib/prisma.js";
 
 import authRouter from "./modules/auth/auth.routes.js";
 
+import adminRouter from "./modules/admin/admin.routes.js";
+
 const app = express();
 
 // security middleware
@@ -52,6 +54,8 @@ app.get("/api/v1/health/database", async(req, res, next) => {
 })
 
 app.use('/api/v1/auth', authRouter);
+
+app.use('/api/v1/admin', adminRouter);
 
 // Handles routes that are not found
 app.use(notFound);

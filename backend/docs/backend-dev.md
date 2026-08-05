@@ -1290,3 +1290,144 @@ Phase 7  ⏭️ Next
 **Current backend milestone:** Authentication complete.
 
 **Next development milestone:** Role-Based Authorization.
+
+## Phase 7A — Role-Based Authorization Middleware
+
+**Status:** Complete
+
+### Goal
+
+Create a reusable Role-Based Access Control (RBAC) middleware that restricts access to API routes based on the authenticated user's role.
+
+### Features Added
+
+* Central `UserRole` TypeScript type
+* Supported user roles:
+
+  * `USER`
+  * `OWNER`
+  * `AGENT`
+  * `ADMIN`
+* Reusable `authorizeRoles()` middleware
+* Admin-only test endpoint
+* Role-based access checks
+* `403 Forbidden` responses for authenticated users without permission
+
+### Authorization Flow
+
+```text
+Request
+  ↓
+authenticate
+  ↓
+Verify JWT
+  ↓
+Attach authenticated user to req.user
+  ↓
+authorizeRoles
+  ↓
+Check whether the user's role is allowed
+  ↓
+Controller
+```
+
+### Files Added
+
+```text
+src/types/role.ts
+
+src/middleware/authorizeRoles.ts
+
+src/modules/admin/admin.controller.ts
+
+src/modules/admin/admin.routes.ts
+```
+
+### Files Updated
+
+```text
+src/types/express.d.ts
+
+src/common/jwt.ts
+
+src/app.ts
+```
+
+### Reusable Authorization Middleware
+
+The middleware can protect routes using one or more roles:
+
+```ts
+authorizeRoles("ADMIN");
+```
+
+or:
+
+```ts
+authorizeRoles(
+  "OWNER",
+  "AGENT",
+  "ADMIN",
+);
+```
+
+### Admin Test Endpoint
+
+| Method | Endpoint                  | Required Role | Status   |
+| ------ | ------------------------- | ------------- | -------- |
+| GET    | `/api/v1/admin/dashboard` | `ADMIN`       | Complete |
+
+### Test Results
+
+#### Authenticated USER
+
+Expected result:
+
+```http
+403 Forbidden
+```
+
+```json
+{
+  "success": false,
+  "message": "You do not have permission to perform this action"
+}
+```
+
+Result:
+
+```text
+Passed ✅
+```
+
+#### Authenticated ADMIN
+
+Expected result:
+
+```http
+200 OK
+```
+
+Result:
+
+```text
+Passed ✅
+```
+
+### Important Security Decision
+
+Authentication and authorization are handled separately.
+
+Authentication determines:
+
+> Who is the user?
+
+Authorization determines:
+
+> What is the user allowed to do?
+
+A valid JWT does not automatically give a user permission to access every route.
+
+### Result
+
+Role-Based Access Control is working correctly. The backend can now restrict API endpoints according to user roles.
