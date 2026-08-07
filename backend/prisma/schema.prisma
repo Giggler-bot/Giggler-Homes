@@ -27,6 +27,25 @@ enum UserStatus {
   DEACTIVATED
 }
 
+enum GhanaRegion {
+  GREATER_ACCRA
+  ASHANTI
+  CENTRAL
+  EASTERN
+  WESTERN
+  WESTERN_NORTH
+  VOLTA
+  OTI
+  NORTHERN
+  NORTH_EAST
+  SAVANNAH
+  UPPER_EAST
+  UPPER_WEST
+  BONO
+  BONO_EAST
+  AHAFO
+}
+
 model User {
   id              String     @id @default(uuid())
   firstName       String
@@ -42,19 +61,81 @@ model User {
   updatedAt       DateTime   @updatedAt
   deletedAt       DateTime?
 
-  properties Property[]
+  properties Property[] @relation("PropertyOwner")
 
   @@index([role])
   @@index([status])
 }
 
 model Property {
-  id        String   @id @default(uuid())
-  ownerId   String
-  title     String
+  id             String @id @default(uuid())
+  ownerId        String
+  locationId     String
+  propertyTypeId String
+  title          String
+  slug           String @unique
+  description    String
+  bedrooms       Int?
+  bathrooms      Int?
+  toilets        Int?
+  parkingSpaces  Int?
+  squareMeters   Float?
+  yearBuilt      Int?
+
+  isFurnished Boolean @default(false)
+  isAvailable Boolean @default(true)
+  isFeatured  Boolean @default(false)
+
+  viewCount Int @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  owner User @relation("PropertyOwner", fields: [ownerId], references: [id])
+}
+
+model Location {
+  id        String      @id @default(uuid())
+  region    GhanaRegion
+  district  String?
+  area      String?
+  landmark  String?
+  slug      String      @unique
+  latitude  Float?
+  longitude Float?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  owner User @relation(fields: [ownerId], references: [id])
+  @@unique([region, district, area])
+  @@index([region, district, area])
+}
 
+model PropertyCategory {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  propertyTypes PropertyType[]
+
+  @@index([name])
+}
+
+model PropertyType {
+  id          String  @id @default(uuid())
+  categoryId  String
+  name        String
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  category PropertyCategory @relation(fields: [categoryId], references: [id])
+
+  @@unique([categoryId, name])
+  @@index([categoryId])
 }

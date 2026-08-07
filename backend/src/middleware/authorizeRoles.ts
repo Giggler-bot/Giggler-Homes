@@ -1,7 +1,7 @@
 import { RequestHandler } from "express";
 
 import { AppError } from "../common/errors/AppError.js";
-import type { UserRole } from "../types/role.js";
+import type { UserRole } from "../common/types/role.js";
 
 export function authorizeRoles(...allowedRoles: UserRole[]): RequestHandler {
   return (req, res, next) => {

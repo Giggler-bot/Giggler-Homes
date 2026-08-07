@@ -1,6 +1,6 @@
 import { AppError } from "../../common/errors/AppError.js";
-import { generateAccessToken } from "../../common/jwt.js";
-import { hashPassword, comparePasswords} from "../../common/password.js";
+import { generateAccessToken } from "../../common/utils/jwt.js";
+import { hashPassword, comparePasswords} from "../../common/utils/password.js";
 import { prisma } from "../../lib/prisma.js";
 
 import type { RegisterInput, LoginInput } from "./auth.validation.js";

@@ -1,4 +1,4 @@
-import type { UserRole } from "./role";
+import type { UserRole } from "./role.ts";
 
 declare global {
     namespace Express {

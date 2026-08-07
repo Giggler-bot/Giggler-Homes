@@ -1,9 +1,16 @@
 import type { Request, Response } from 'express';
+import { createProperty } from './property.service.js';
 
-export function updateProperty(
+export async function createPropertycontroller(
     req: Request,
     res: Response
-): void {
+) {
+
+    const property = await createProperty({
+        ownerId: req.user?.id,
+        ...req.body,
+    })
+
     res.status(200).json({
         success: true,
         message: "You are authorized to update this property",

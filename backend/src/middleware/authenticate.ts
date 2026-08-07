@@ -3,7 +3,7 @@ import { RequestHandler } from "express";
 import jwt from "jsonwebtoken";
 
 import { AppError } from "../common/errors/AppError.js";
-import { verifyAccessToken } from "../common/jwt.js";
+import { verifyAccessToken } from "../common/utils/jwt.js";
 
 export const authenticate: RequestHandler = async (
   req,
