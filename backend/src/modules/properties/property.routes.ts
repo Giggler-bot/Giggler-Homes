@@ -11,14 +11,19 @@ import { createPropertySchema } from "./property.validation.js";
 
 const propertyRouter = Router();
 
-propertyRouter.patch(
-  "/:propertyId",
+propertyRouter.post(
+  "/",
   authenticate,
-  authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN" ),
-  authorizepropertyOwner(),
+  authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
   validateRequest(createPropertySchema),
   createPropertycontroller,
 );
 
+propertyRouter.patch(
+  "/:propertyId",
+  authenticate,
+  authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
+  authorizepropertyOwner(),
+);
 
 export default propertyRouter;

@@ -65,6 +65,8 @@ model User {
 
   @@index([role])
   @@index([status])
+
+  @@index([deletedAt])
 }
 
 model Property {
@@ -92,9 +94,16 @@ model Property {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  owner User @relation("PropertyOwner", fields: [ownerId], references: [id])
-  location Location @relation(fields: [locationId], references: [id])
+  owner        User         @relation("PropertyOwner", fields: [ownerId], references: [id])
+  location     Location     @relation(fields: [locationId], references: [id])
   propertyType PropertyType @relation(fields: [propertyTypeId], references: [id])
+
+  @@index([ownerId])
+  @@index([locationId])
+  @@index([propertyTypeId])
+  @@index([isAvailable])
+  @@index([isFeatured])
+  @@index([deletedAt])
 }
 
 model Location {

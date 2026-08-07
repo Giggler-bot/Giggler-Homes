@@ -1570,3 +1570,478 @@ The backend now supports both:
 * Resource ownership authorization
 
 This provides a secure foundation for the upcoming Property module.
+
+# Giggler Homes Backend Development
+
+## Project Status
+
+**Current Phase:** Phase 8 Complete – Property Foundation
+
+**Project Status:** 🟢 Stable
+
+The backend has successfully transitioned from authentication development into the core property domain. The project now has a production-quality architecture consisting of modular Express routes, controllers, services, middleware, Prisma ORM, PostgreSQL, and Zod validation.
+
+---
+
+# Development Philosophy
+
+Rather than importing an entire generated backend, the project is being developed feature-by-feature.
+
+Every feature follows the same workflow:
+
+```
+Design
+    ↓
+Database Model (Prisma)
+    ↓
+Migration
+    ↓
+Generate Prisma Client
+    ↓
+Validation (Zod)
+    ↓
+Service Layer
+    ↓
+Controller Layer
+    ↓
+Route Layer
+    ↓
+Testing
+    ↓
+Documentation
+```
+
+This approach ensures every component is fully understood before moving to the next feature.
+
+---
+
+# Completed Phases
+
+## ✅ Phase 1 – Backend Project Setup
+
+Completed
+
+* Backend folder structure
+* Express setup
+* TypeScript configuration
+* Development scripts
+* Environment configuration
+* Health endpoint
+
+---
+
+## ✅ Phase 2 – Express Configuration
+
+Completed
+
+* Express application
+* Middleware configuration
+* Helmet
+* Morgan
+* Compression
+* CORS
+* JSON parser
+* Error middleware
+
+---
+
+## ✅ Phase 3 – Project Architecture
+
+Completed
+
+Project organized into:
+
+```
+src/
+
+config/
+
+common/
+
+middleware/
+
+modules/
+
+lib/
+
+generated/
+
+types/
+```
+
+---
+
+## ✅ Phase 4 – Database
+
+Completed
+
+Technology:
+
+* PostgreSQL (Neon)
+* Prisma ORM
+* Prisma Client
+* Prisma Migrations
+
+Completed:
+
+* Prisma initialization
+* Database connection
+* Migration workflow
+* Shared Prisma client
+
+---
+
+## ✅ Phase 5 – Error Handling
+
+Completed
+
+Implemented:
+
+* AppError
+* Global Error Handler
+* Zod validation error handling
+* HTTP status handling
+* Development stack traces
+
+---
+
+## ✅ Phase 6 – Authentication
+
+Completed
+
+Implemented:
+
+* User Registration
+* Login
+* Password Hashing
+* JWT Authentication
+* Authentication Middleware
+
+Validation includes:
+
+* Email
+* Phone
+* Password
+* Duplicate Email
+* Duplicate Phone
+
+---
+
+## ✅ Phase 7 – Authorization
+
+Completed
+
+Implemented:
+
+Role Authorization
+
+Supported Roles
+
+* USER
+* OWNER
+* AGENCY
+* HOTEL
+* ADMIN
+
+Ownership Authorization
+
+Property owners can only modify their own properties.
+
+Successfully tested.
+
+---
+
+## ✅ Phase 8 – Property Foundation
+
+Completed
+
+### Database Models
+
+Implemented
+
+* User
+* Property
+* Location
+* PropertyCategory
+* PropertyType
+
+Relationships
+
+```
+User
+    │
+    ▼
+Property
+    │
+    ├────────────► Location
+    │
+    └────────────► PropertyType
+                         │
+                         ▼
+                PropertyCategory
+```
+
+---
+
+### Enums
+
+Implemented
+
+UserRole
+
+* USER
+* OWNER
+* AGENCY
+* HOTEL
+* ADMIN
+
+UserStatus
+
+* ACTIVE
+* INACTIVE
+* SUSPENDED
+* DEACTIVATED
+
+GhanaRegion
+
+* All sixteen Ghana regions
+
+---
+
+### Seed System
+
+Implemented
+
+Reference Data
+
+Property Categories
+
+* Residential
+* Commercial
+* Hospitality
+* Land
+
+Property Types
+
+Residential
+
+* Apartment
+* Studio Apartment
+* Self Contained
+* Chamber & Hall
+* Detached House
+* Semi Detached House
+* Townhouse
+* Villa
+
+Commercial
+
+* Office
+* Shop
+* Warehouse
+* Factory
+
+Hospitality
+
+* Hotel
+* Guest House
+* Hostel
+* Resort
+
+Land
+
+* Residential Land
+* Commercial Land
+* Farm Land
+
+Locations
+
+* Ghana's sixteen regions
+
+Seeding is idempotent using Prisma upsert().
+
+---
+
+### Property Module
+
+Implemented
+
+Create Property
+
+Features
+
+* Slug generation
+* Owner assigned from authenticated user
+* Foreign key validation
+* Zod request validation
+* Modular controller/service architecture
+
+---
+
+### Shared Prisma Client
+
+A single Prisma client is shared across the application to avoid multiple database connections.
+
+Location
+
+```
+src/lib/prisma.ts
+```
+
+---
+
+# Architecture Standards
+
+Every module follows the same structure.
+
+```
+module/
+
+controller.ts
+
+service.ts
+
+routes.ts
+
+validation.ts
+
+types.ts (when required)
+
+constants.ts (when required)
+
+utils.ts (when required)
+```
+
+---
+
+# API Design Standards
+
+Controllers
+
+* Handle HTTP requests and responses only.
+
+Services
+
+* Contain all business logic.
+
+Validation
+
+* Performed using Zod.
+
+Database
+
+* Accessed only through Prisma.
+
+Middleware
+
+* Handles authentication, authorization and validation.
+
+---
+
+# Testing Completed
+
+Infrastructure
+
+* Server
+* Database
+* Prisma
+* Migrations
+
+Authentication
+
+* Registration
+* Login
+* JWT Generation
+* JWT Verification
+
+Authorization
+
+* Role Authorization
+* Property Ownership Authorization
+
+Validation
+
+* Authentication Validation
+* Property Validation
+
+Database
+
+* Relationships
+* Foreign Keys
+* Seed Data
+
+Property
+
+* Property Creation
+* Slug Generation
+* Owner Assignment
+
+Status
+
+All tests completed successfully.
+
+---
+
+# Important Design Decisions
+
+Rather than copying the generated backend, the project is being rebuilt from scratch using the generated backend only as a reference.
+
+Database models are introduced incrementally instead of importing every model at once.
+
+Reference data is seeded rather than manually inserted.
+
+Prisma remains the single source of truth for database design.
+
+Every feature is fully tested before development proceeds.
+
+Documentation is updated after every completed phase.
+
+---
+
+# Current Project Structure
+
+```
+Backend
+
+Authentication ✅
+
+Authorization ✅
+
+Property Foundation ✅
+
+Listing Module ⏳
+
+Media Module ⏳
+
+Amenities Module ⏳
+
+Favorites Module ⏳
+
+Inquiry Module ⏳
+
+Verification Module ⏳
+
+Reports Module ⏳
+
+Administration Module ⏳
+```
+
+---
+
+# Next Phase
+
+## Phase 9 – Listing Module
+
+Objectives
+
+* Listing model
+* Listing validation
+* Create listing endpoint
+* Update listing endpoint
+* Listing publication workflow
+* Listing status management
+* Pricing
+* Rent period
+* Sale listings
+* Listing retrieval APIs
+* Listing search and filtering
