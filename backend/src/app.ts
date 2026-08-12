@@ -14,6 +14,7 @@ import authRouter from "./modules/auth/auth.routes.js";
 import adminRouter from "./modules/admin/admin.routes.js";
 
 import propertyRouter from "./modules/properties/property.routes.js";
+import listingRouter from "./modules/listings/listing.routes.js";
 
 const app = express();
 
@@ -59,6 +60,8 @@ app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/admin', adminRouter);
 
 app.use('/api/v1/properties', propertyRouter);
+
+app.use('/api/v1/listings', listingRouter);
 
 
 // Handles routes that are not found

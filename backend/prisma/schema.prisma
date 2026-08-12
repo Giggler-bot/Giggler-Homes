@@ -46,6 +46,31 @@ enum GhanaRegion {
   AHAFO
 }
 
+enum ListingStatus {
+  DRAFT
+  PENDING_REVIEW
+  ACTIVE
+  REJECTED
+  EXPIRED
+  ARCHIVED
+  SOLD
+  RENTED
+}
+
+enum ListingType {
+  RENT
+  SALE
+  SHORT_STAY
+  LEASE
+}
+
+enum RentPeriod {
+  DAILY
+  WEEKLY
+  MONTLY
+  YEARLY
+}
+
 model User {
   id              String     @id @default(uuid())
   firstName       String
@@ -65,7 +90,6 @@ model User {
 
   @@index([role])
   @@index([status])
-
   @@index([deletedAt])
 }
 
@@ -88,8 +112,6 @@ model Property {
   isAvailable Boolean @default(true)
   isFeatured  Boolean @default(false)
 
-  viewCount Int @default(0)
-
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -97,6 +119,7 @@ model Property {
   owner        User         @relation("PropertyOwner", fields: [ownerId], references: [id])
   location     Location     @relation(fields: [locationId], references: [id])
   propertyType PropertyType @relation(fields: [propertyTypeId], references: [id])
+  listing      Listing[]
 
   @@index([ownerId])
   @@index([locationId])
@@ -153,4 +176,33 @@ model PropertyType {
 
   @@unique([categoryId, name])
   @@index([categoryId])
+}
+
+model Listing {
+  id                      String        @id @default(uuid())
+  propertyId              String
+  listingType             ListingType
+  status                  ListingStatus @default(DRAFT)
+  price                   Decimal       @db.Decimal(14, 2)
+  currency                String        @default("GHS")
+  rentPeriod              RentPeriod?
+  negotiable              Boolean       @default(false)
+  isFeatured              Boolean       @default(false)
+  availabilityConfirmedAt DateTime?
+  publishedAt             DateTime?
+  expiresAt               DateTime?
+  viewCount               Int           @default(0)
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+  deletedAt               DateTime?
+
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@index([propertyId])
+  @@index([status, listingType])
+  @@index([listingType])
+  @@index([price])
+  @@index([isFeatured])
+  @@index([expiresAt])
+  @@index([deletedAt])
 }
