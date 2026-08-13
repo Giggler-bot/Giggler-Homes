@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -10,6 +5,130 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+model User {
+  id              String     @id @default(uuid())
+  email           String     @unique
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime?
+  firstName       String
+  isEmailVerified Boolean    @default(false)
+  isPhoneVerified Boolean    @default(false)
+  lastName        String
+  passwordHash    String
+  phone           String     @unique
+  role            UserRole   @default(USER)
+  status          UserStatus @default(ACTIVE)
+  properties      Property[] @relation("PropertyOwner")
+
+  @@index([role])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model Property {
+  id             String       @id @default(uuid())
+  ownerId        String
+  title          String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  bathrooms      Int?
+  bedrooms       Int?
+  deletedAt      DateTime?
+  description    String
+  isAvailable    Boolean      @default(true)
+  isFeatured     Boolean      @default(false)
+  isFurnished    Boolean      @default(false)
+  locationId     String
+  parkingSpaces  Int?
+  propertyTypeId String
+  slug           String       @unique
+  squareMeters   Float?
+  toilets        Int?
+  yearBuilt      Int?
+  listing        Listing[]
+  location       Location     @relation(fields: [locationId], references: [id])
+  owner          User         @relation("PropertyOwner", fields: [ownerId], references: [id])
+  propertyType   PropertyType @relation(fields: [propertyTypeId], references: [id])
+
+  @@index([ownerId])
+  @@index([locationId])
+  @@index([propertyTypeId])
+  @@index([isAvailable])
+  @@index([isFeatured])
+  @@index([deletedAt])
+}
+
+model Location {
+  id         String      @id @default(uuid())
+  region     GhanaRegion
+  district   String?
+  area       String?
+  landmark   String?
+  slug       String      @unique
+  latitude   Float?
+  longitude  Float?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  properties Property[]
+
+  @@unique([region, district, area])
+  @@index([region, district, area])
+}
+
+model PropertyCategory {
+  id            String         @id @default(uuid())
+  name          String         @unique
+  description   String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  propertyTypes PropertyType[]
+
+  @@index([name])
+}
+
+model PropertyType {
+  id          String           @id @default(uuid())
+  categoryId  String
+  name        String
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  properties  Property[]
+  category    PropertyCategory @relation(fields: [categoryId], references: [id])
+
+  @@unique([categoryId, name])
+  @@index([categoryId])
+}
+
+model Listing {
+  id                      String        @id @default(uuid())
+  propertyId              String
+  listingType             ListingType
+  status                  ListingStatus @default(DRAFT)
+  price                   Decimal       @db.Decimal(14, 2)
+  currency                String        @default("GHS")
+  rentPeriod              RentPeriod?
+  negotiable              Boolean       @default(false)
+  isFeatured              Boolean       @default(false)
+  availabilityConfirmedAt DateTime?
+  publishedAt             DateTime?
+  expiresAt               DateTime?
+  viewCount               Int           @default(0)
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+  deletedAt               DateTime?
+  property                Property      @relation(fields: [propertyId], references: [id])
+
+  @@index([propertyId])
+  @@index([status, listingType])
+  @@index([listingType])
+  @@index([price])
+  @@index([isFeatured])
+  @@index([expiresAt])
+  @@index([deletedAt])
 }
 
 enum UserRole {
@@ -67,142 +186,6 @@ enum ListingType {
 enum RentPeriod {
   DAILY
   WEEKLY
-  MONTLY
+  MONTHLY
   YEARLY
-}
-
-model User {
-  id              String     @id @default(uuid())
-  firstName       String
-  lastName        String
-  email           String     @unique
-  phone           String     @unique
-  passwordHash    String
-  role            UserRole   @default(USER)
-  status          UserStatus @default(ACTIVE)
-  isEmailVerified Boolean    @default(false)
-  isPhoneVerified Boolean    @default(false)
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  deletedAt       DateTime?
-
-  properties Property[] @relation("PropertyOwner")
-
-  @@index([role])
-  @@index([status])
-  @@index([deletedAt])
-}
-
-model Property {
-  id             String @id @default(uuid())
-  ownerId        String
-  locationId     String
-  propertyTypeId String
-  title          String
-  slug           String @unique
-  description    String
-  bedrooms       Int?
-  bathrooms      Int?
-  toilets        Int?
-  parkingSpaces  Int?
-  squareMeters   Float?
-  yearBuilt      Int?
-
-  isFurnished Boolean @default(false)
-  isAvailable Boolean @default(true)
-  isFeatured  Boolean @default(false)
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  owner        User         @relation("PropertyOwner", fields: [ownerId], references: [id])
-  location     Location     @relation(fields: [locationId], references: [id])
-  propertyType PropertyType @relation(fields: [propertyTypeId], references: [id])
-  listing      Listing[]
-
-  @@index([ownerId])
-  @@index([locationId])
-  @@index([propertyTypeId])
-  @@index([isAvailable])
-  @@index([isFeatured])
-  @@index([deletedAt])
-}
-
-model Location {
-  id        String      @id @default(uuid())
-  region    GhanaRegion
-  district  String?
-  area      String?
-  landmark  String?
-  slug      String      @unique
-  latitude  Float?
-  longitude Float?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  properties Property[]
-
-  @@unique([region, district, area])
-  @@index([region, district, area])
-}
-
-model PropertyCategory {
-  id          String  @id @default(uuid())
-  name        String  @unique
-  description String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  propertyTypes PropertyType[]
-
-  @@index([name])
-}
-
-model PropertyType {
-  id          String  @id @default(uuid())
-  categoryId  String
-  name        String
-  description String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  properties Property[]
-
-  category PropertyCategory @relation(fields: [categoryId], references: [id])
-
-  @@unique([categoryId, name])
-  @@index([categoryId])
-}
-
-model Listing {
-  id                      String        @id @default(uuid())
-  propertyId              String
-  listingType             ListingType
-  status                  ListingStatus @default(DRAFT)
-  price                   Decimal       @db.Decimal(14, 2)
-  currency                String        @default("GHS")
-  rentPeriod              RentPeriod?
-  negotiable              Boolean       @default(false)
-  isFeatured              Boolean       @default(false)
-  availabilityConfirmedAt DateTime?
-  publishedAt             DateTime?
-  expiresAt               DateTime?
-  viewCount               Int           @default(0)
-  createdAt               DateTime      @default(now())
-  updatedAt               DateTime      @updatedAt
-  deletedAt               DateTime?
-
-  property Property @relation(fields: [propertyId], references: [id])
-
-  @@index([propertyId])
-  @@index([status, listingType])
-  @@index([listingType])
-  @@index([price])
-  @@index([isFeatured])
-  @@index([expiresAt])
-  @@index([deletedAt])
 }

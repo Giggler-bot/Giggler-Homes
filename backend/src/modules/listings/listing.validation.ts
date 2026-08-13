@@ -16,7 +16,7 @@ export const createListingSchema = z
         .string()
         .length(3)
         .transform((value) => value.toUpperCase())
-        .default("GHC"),
+        .default("GHS"),
       rentPeriod: z.enum(rentPeriods).optional(),
       negotiable: z.boolean().default(false),
       isFeatured: z.boolean().default(false),
@@ -47,7 +47,7 @@ export const createListingSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["body", "rentPeriod"],
-        message: "Rent period must not be provoded for a sale listing.",
+        message: "Rent period must not be provided for a sale listing.",
       });
     }
   });
