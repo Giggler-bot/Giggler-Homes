@@ -5,7 +5,7 @@ import { authorizeRoles } from "../../middleware/authorizeRoles.js";
 import { validateRequest } from "../../middleware/validateRequest.js";
 
 import { createListingSchema } from "./listing.validation.js";
-import { createListingController, getActiveListingsController } from "./listing.controller.js";
+import { createListingController, getActiveListingByIdController, getActiveListingsController } from "./listing.controller.js";
 
 
 const listingRouter = Router();
@@ -18,6 +18,8 @@ listingRouter.post(
  createListingController,
 );
 
-listingRouter.get("/", getActiveListingsController)
+listingRouter.get("/", getActiveListingsController);
+
+listingRouter.get("/:listingId", getActiveListingByIdController,)
 
 export default listingRouter;

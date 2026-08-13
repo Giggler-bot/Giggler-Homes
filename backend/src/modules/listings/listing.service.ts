@@ -95,6 +95,35 @@ export async function getActiveListings() {
     return listing;
 }
 
+export async function getActiveListingById(listingId: string){
+    const listing = await prisma.listing.findFirst({
+        where: {
+            id: listingId,
+            status: "ACTIVE",
+            deletedAt: null,
+        },
+        include: {
+            property: {
+                include: {
+                    location: true,
+
+                    propertyType: {
+                        include: {
+                            category: true,
+                        }
+                    },
+                },
+            },
+        },
+    });
+
+    if (!listing){
+        throw new AppError("Listing not found", 404);
+    }
+
+    return listing;
+}
+
 
 
 
