@@ -1,7 +1,11 @@
-import { Prisma, GhanaRegion, ListingType } from "../../generated/prisma/client.js";
+import {
+  Prisma,
+  GhanaRegion,
+  ListingType,
+  RentPeriod,
+} from "../../generated/prisma/client.js";
 import { AppError } from "../../common/errors/AppError.js";
 import { prisma } from "../../lib/prisma.js";
-
 
 type createListingInput = {
   userId: string;
@@ -118,7 +122,6 @@ export async function getActiveListings(filters: GetActiveListingsFilters) {
     }),
   };
 
-
   const where: Prisma.ListingWhereInput = {
     status: "ACTIVE",
     deletedAt: null,
@@ -217,4 +220,64 @@ export async function getActiveListingById(listingId: string) {
   }
 
   return listing;
+}
+
+type UpdateListingData = {
+  price?: number;
+  currency?: string;
+  rentPeriod?: RentPeriod;
+  negotiable?: boolean;
+  expiresAt?: Date | null;
+};
+
+export async function updateListing(
+  listingId: string,
+  userId: string,
+  data: UpdateListingData,
+) {
+  const listing = await prisma.listing.findUnique({
+    where: {
+      id: listingId,
+    },
+    include: {
+      property: true,
+    },
+  });
+
+  if (!listing) {
+    throw new AppError("Listing not found", 404);
+  }
+  if (listing.property.ownerId !== userId) {
+    throw new AppError("You are not authorize to update this listing", 403);
+  }
+  if (listing.deletedAt) {
+    throw new AppError("This listing has been deleted", 400);
+  }
+  if (listing.status !== "DRAFT") {
+    throw new AppError("Only draft listings can be updated", 400);
+  }
+
+  const updatedListing = await prisma.listing.update({
+    where: {
+      id: listingId,
+    },
+
+    data,
+
+    include: {
+      property: {
+        include: {
+          location: true,
+
+          propertyType: {
+            include: {
+              category: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return updatedListing;
 }

@@ -107,3 +107,24 @@ const listingQuerySchema = z
 export const getListingsQuerySchema = z.object({
   query: listingQuerySchema,
 });
+
+export const updateListingSchema = z.object({
+  params: z.object({
+    listingId: z.uuid(),
+  }),
+  body: z
+    .object({
+      price: z.coerce.number().positive().optional(),
+      currency: z.string().length(3).toUpperCase().optional(),
+      rentPeriod: z
+        .enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY"])
+        .nullable()
+        .optional(),
+      negotiable: z.boolean().optional(),
+      expiresAt: z.coerce.date().nullable().optional(),
+    })
+    .strict()
+    .refine((data) => Object.keys(data).length > 0, {
+      message: "At least one field must be provided.",
+    }),
+});

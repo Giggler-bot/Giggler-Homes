@@ -3,12 +3,14 @@ import {
   createListing,
   getActiveListingById,
   getActiveListings,
+  updateListing,
 } from "./listing.service.js";
 import {
   Prisma,
   GhanaRegion,
   ListingType,
 } from "../../generated/prisma/client.js";
+import { success } from "zod";
 
 export async function createListingController(req: Request, res: Response) {
   const listing = await createListing({
@@ -39,7 +41,7 @@ export async function getActiveListingsController(req: Request, res: Response) {
 
   const page = Number(query.page ?? 1);
   const limit = Number(query.limit ?? 20);
-  
+
   const result = await getActiveListings({
     ...query,
     page,
@@ -50,10 +52,6 @@ export async function getActiveListingsController(req: Request, res: Response) {
     message: "Listings retrieved successfully",
     data: result,
   });
-  console.log("LISTING QUERY:", req.query);
-  console.log("PAGE:", req.query.page, typeof req.query.page);
-  console.log("LIMIT:", req.query.limit, typeof req.query.limit);
-  console.log("REGION:", req.query.region, typeof req.query.region);
 }
 
 export async function getActiveListingByIdController(
@@ -66,5 +64,19 @@ export async function getActiveListingByIdController(
     success: true,
     message: "Listing retrieved successfully",
     data: listings,
+  });
+}
+
+export async function updateListingController(req: Request<{ listingId: string }> ,res: Response) {
+  const listing = await updateListing(
+    req.params.listingId,
+    req.user!.id,
+    req.body,
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Listing updated successfully",
+    data: listing,
   });
 }
