@@ -4,7 +4,7 @@ import { authenticate } from "../../middleware/authenticate.js";
 import { authorizeRoles } from "../../middleware/authorizeRoles.js";
 import { validateRequest } from "../../middleware/validateRequest.js";
 
-import { createListingSchema } from "./listing.validation.js";
+import { createListingSchema, getListingsQuerySchema } from "./listing.validation.js";
 import { createListingController, getActiveListingByIdController, getActiveListingsController } from "./listing.controller.js";
 
 
@@ -18,7 +18,7 @@ listingRouter.post(
  createListingController,
 );
 
-listingRouter.get("/", getActiveListingsController);
+listingRouter.get("/", validateRequest(getListingsQuerySchema),  getActiveListingsController);
 
 listingRouter.get("/:listingId", getActiveListingByIdController,)
 

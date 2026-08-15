@@ -51,3 +51,59 @@ export const createListingSchema = z
       });
     }
   });
+
+const listingQueryTypes = ["RENT", "SALE", "SHORT_STAY", "LEASE"] as const;
+
+const ghanaRegions = [
+  "GREATER_ACCRA",
+  "ASHANTI",
+  "CENTRAL",
+  "EASTERN",
+  "WESTERN",
+  "WESTERN_NORTH",
+  "VOLTA",
+  "OTI",
+  "NORTHERN",
+  "NORTH_EAST",
+  "SAVANNAH",
+  "UPPER_EAST",
+  "UPPER_WEST",
+  "BONO",
+  "BONO_EAST",
+  "AHAFO",
+] as const;
+
+const booleanQuery = z
+  .enum(["true", "false"])
+  .transform((value) => value === "true");
+
+const listingQuerySchema = z
+  .object({
+    listingType: z.enum(listingQueryTypes).optional(),
+    region: z.enum(ghanaRegions).optional(),
+    propertyTypeId: z.uuid().optional(),
+    minPrice: z.coerce.number().nonnegative().optional(),
+    maxPrice: z.coerce.number().nonnegative().optional(),
+    bedrooms: z.coerce.number().int().nonnegative().optional(),
+    bathrooms: z.coerce.number().int().nonnegative().optional(),
+    isFurnished: booleanQuery.optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .superRefine((query, ctx) => {
+    if (
+      query.minPrice !== undefined &&
+      query.maxPrice !== undefined &&
+      query.minPrice > query.maxPrice
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["maxPrice"],
+        message:
+          "Maximum price must be greater than or equal to minimum price.",
+      });
+    }
+  });
+export const getListingsQuerySchema = z.object({
+  query: listingQuerySchema,
+});

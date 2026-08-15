@@ -1,5 +1,7 @@
+import { Prisma, GhanaRegion, ListingType } from "../../generated/prisma/client.js";
 import { AppError } from "../../common/errors/AppError.js";
 import { prisma } from "../../lib/prisma.js";
+
 
 type createListingInput = {
   userId: string;
@@ -49,93 +51,170 @@ export async function createListing(input: createListingInput) {
 
   const listing = await prisma.listing.create({
     data: {
-        propertyId,
-        listingType,
-        price,
-        currency,
-        rentPeriod,
-        negotiable,
-        isFeatured,
-        expiresAt,
-    }
+      propertyId,
+      listingType,
+      price,
+      currency,
+      rentPeriod,
+      negotiable,
+      isFeatured,
+      expiresAt,
+    },
   });
 
   return listing;
 }
 
-export async function getActiveListings() {
-    const listing = await prisma.listing.findMany({
-        where: {
-            status: "ACTIVE",
-            deletedAt: null
-        },
-        include: {
-            property: {
-                include: {
-                    location: true,
+type GetActiveListingsFilters = {
+  page: number;
+  limit: number;
+  listingType?: ListingType;
+  region?: GhanaRegion;
+  propertyTypeId?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  bedrooms?: number;
+  bathrooms?: number;
+  isFurnished?: boolean;
+};
 
-                    propertyType: {
-                        include: {
-                            category: true,
-                        }
-                    }
-                }
-            }
-        },
-        orderBy: [
-            {
-                isFeatured: "desc",
-            },
-            {
-                createdAt: "desc",
-            },
-        ],
-    });
+export async function getActiveListings(filters: GetActiveListingsFilters) {
+  const {
+    page,
+    limit,
+    listingType,
+    region,
+    propertyTypeId,
+    minPrice,
+    maxPrice,
+    bedrooms,
+    bathrooms,
+    isFurnished,
+  } = filters;
 
-    return listing;
+  const skip = (page - 1) * limit;
+
+  const propertyFilters: Prisma.PropertyWhereInput = {
+    ...(region && {
+      location: {
+        region,
+      },
+    }),
+
+    ...(propertyTypeId && {
+      propertyTypeId,
+    }),
+
+    ...(bedrooms !== undefined && {
+      bedrooms,
+    }),
+
+    ...(bathrooms !== undefined && {
+      bathrooms,
+    }),
+
+    ...(isFurnished !== undefined && {
+      isFurnished,
+    }),
+  };
+
+
+  const where: Prisma.ListingWhereInput = {
+    status: "ACTIVE",
+    deletedAt: null,
+
+    ...(listingType && {
+      listingType,
+    }),
+
+    ...(Object.keys(propertyFilters).length > 0 && {
+      property: propertyFilters,
+    }),
+
+    ...(minPrice !== undefined || maxPrice !== undefined
+      ? {
+          price: {
+            ...(minPrice !== undefined && {
+              gte: minPrice,
+            }),
+            ...(maxPrice !== undefined && {
+              lte: maxPrice,
+            }),
+          },
+        }
+      : {}),
+  };
+
+  const [listings, total] = await Promise.all([
+    prisma.listing.findMany({
+      where,
+
+      include: {
+        property: {
+          include: {
+            location: true,
+
+            propertyType: {
+              include: {
+                category: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: [
+        {
+          isFeatured: "desc",
+        },
+        {
+          createdAt: "desc",
+        },
+      ],
+      skip,
+      take: limit,
+    }),
+
+    prisma.listing.count({
+      where,
+    }),
+  ]);
+
+  return {
+    listings,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
 }
 
-export async function getActiveListingById(listingId: string){
-    const listing = await prisma.listing.findFirst({
-        where: {
-            id: listingId,
-            status: "ACTIVE",
-            deletedAt: null,
-        },
+export async function getActiveListingById(listingId: string) {
+  const listing = await prisma.listing.findFirst({
+    where: {
+      id: listingId,
+      status: "ACTIVE",
+      deletedAt: null,
+    },
+    include: {
+      property: {
         include: {
-            property: {
-                include: {
-                    location: true,
+          location: true,
 
-                    propertyType: {
-                        include: {
-                            category: true,
-                        }
-                    },
-                },
+          propertyType: {
+            include: {
+              category: true,
             },
+          },
         },
-    });
+      },
+    },
+  });
 
-    if (!listing){
-        throw new AppError("Listing not found", 404);
-    }
+  if (!listing) {
+    throw new AppError("Listing not found", 404);
+  }
 
-    return listing;
+  return listing;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
