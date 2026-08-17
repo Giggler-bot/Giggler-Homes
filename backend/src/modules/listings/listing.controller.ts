@@ -70,7 +70,6 @@ export async function getActiveListingByIdController(
 export async function updateListingController(req: Request<{ listingId: string }> ,res: Response) {
   const listing = await updateListing(
     req.params.listingId,
-    req.user!.id,
     req.body,
   );
 

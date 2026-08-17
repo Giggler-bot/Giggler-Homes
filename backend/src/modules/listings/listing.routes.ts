@@ -4,6 +4,8 @@ import { authenticate } from "../../middleware/authenticate.js";
 import { authorizeRoles } from "../../middleware/authorizeRoles.js";
 import { validateRequest } from "../../middleware/validateRequest.js";
 
+import { authorizeListingOwner } from "../../middleware/authorizeListingOwner.js";
+
 import {
   createListingSchema,
   getListingsQuerySchema,
@@ -38,6 +40,7 @@ listingRouter.patch(
   "/:listingId",
   authenticate,
   authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
+  authorizeListingOwner(),
   validateRequest(updateListingSchema),
   updateListingController,
 );

@@ -232,7 +232,6 @@ type UpdateListingData = {
 
 export async function updateListing(
   listingId: string,
-  userId: string,
   data: UpdateListingData,
 ) {
   const listing = await prisma.listing.findUnique({
@@ -247,9 +246,7 @@ export async function updateListing(
   if (!listing) {
     throw new AppError("Listing not found", 404);
   }
-  if (listing.property.ownerId !== userId) {
-    throw new AppError("You are not authorize to update this listing", 403);
-  }
+
   if (listing.deletedAt) {
     throw new AppError("This listing has been deleted", 400);
   }
