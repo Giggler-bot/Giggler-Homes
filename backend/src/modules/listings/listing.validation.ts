@@ -128,3 +128,9 @@ export const updateListingSchema = z.object({
       message: "At least one field must be provided.",
     }),
 });
+
+export const submitListingSchema = z.object({
+  params: z.object({
+    listingId: z.uuid(),
+  }),
+});

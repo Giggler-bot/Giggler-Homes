@@ -9,12 +9,14 @@ import { authorizeListingOwner } from "../../middleware/authorizeListingOwner.js
 import {
   createListingSchema,
   getListingsQuerySchema,
+  submitListingSchema,
   updateListingSchema,
 } from "./listing.validation.js";
 import {
   createListingController,
   getActiveListingByIdController,
   getActiveListingsController,
+  submitListingController,
   updateListingController,
 } from "./listing.controller.js";
 
@@ -40,9 +42,18 @@ listingRouter.patch(
   "/:listingId",
   authenticate,
   authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
-  authorizeListingOwner(),
   validateRequest(updateListingSchema),
+  authorizeListingOwner(),
   updateListingController,
+);
+
+listingRouter.post(
+  "/:listingId/submit",
+  authenticate,
+  authorizeRoles("OWNER", "AGENCY", "HOTEL"),
+  validateRequest(submitListingSchema),
+  authorizeListingOwner(),
+  submitListingController,
 );
 
 export default listingRouter;

@@ -278,3 +278,65 @@ export async function updateListing(
 
   return updatedListing;
 }
+
+export async function submitListingForReview(listingId: string,){
+  const listing = await prisma.listing.findUnique({
+    where: {
+      id: listingId,
+    },
+    include: {
+      property: {
+        include: {
+          location: true,
+          propertyType: true,
+        },
+      },
+    },
+  });
+
+  if(!listing){
+    throw new AppError("Listing not found", 404);
+  }
+
+  if(listing.deletedAt){
+    throw new AppError("This listing has been deleted", 400);
+  }
+
+  if(listing.status !== "DRAFT"){
+    throw new AppError("Only draft listings can be submitted for reviw", 400);
+  }
+
+  if(!listing.property){
+    throw new AppError("Listing must have a property", 400);
+  }
+
+  if(!listing.property.location){
+    throw new AppError("Property must have a location before submission", 400);
+  }
+
+  if(listing.price.lte(0)){
+    throw new AppError("Listing price must be greater than zero", 400);
+  }
+
+  const rentalListingTypes = [
+    "RENT",
+    "LEASE",
+    "SHORT_STAY",
+  ];
+
+  if(rentalListingTypes.includes(listing.listingType) && !listing.rentPeriod ){
+    throw new AppError("Rent period is required for this listing type", 400);
+  }
+
+  const submitedListing = await prisma.listing.update({
+    where: {
+      id: listingId,
+    },
+    data: {
+      status: "PENDING_REVIEW"
+    },
+  });
+
+  return submitedListing;
+
+}

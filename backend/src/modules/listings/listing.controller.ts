@@ -3,6 +3,7 @@ import {
   createListing,
   getActiveListingById,
   getActiveListings,
+  submitListingForReview,
   updateListing,
 } from "./listing.service.js";
 import {
@@ -10,7 +11,7 @@ import {
   GhanaRegion,
   ListingType,
 } from "../../generated/prisma/client.js";
-import { success } from "zod";
+
 
 export async function createListingController(req: Request, res: Response) {
   const listing = await createListing({
@@ -77,5 +78,20 @@ export async function updateListingController(req: Request<{ listingId: string }
     success: true,
     message: "Listing updated successfully",
     data: listing,
+  });
+}
+
+export async function submitListingController(req: Request<{ listingId: string}>, res: Response){
+  const listing = await submitListingForReview(
+    req.params.listingId,
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Listing submited for review successfully",
+    data: {
+      listingId: listing.id,
+      status: listing.status,
+    },
   });
 }
