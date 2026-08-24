@@ -340,3 +340,66 @@ export async function submitListingForReview(listingId: string,){
   return submitedListing;
 
 }
+
+export async function approveListing( listingId: string, ){
+  const listing = await prisma.listing.findUnique({
+    where: {
+      id: listingId,
+    },
+  });
+
+  if(!listing){
+    throw new AppError("Listing not found", 404);
+  }
+
+  if(listing.deletedAt){
+    throw new AppError("This listing has been deleted", 400);
+  }
+
+  if(listing.status !== "PENDING_REVIEW") {
+    throw new AppError("Only listings pending review can be approved", 400);
+  }
+
+  const approvedListing = await prisma.listing.update({
+    where: {
+      id: listingId,
+    },
+    data: {
+      status: "ACTIVE",
+      publishedAt: new Date(),
+    },
+  });
+
+  return approvedListing;
+}
+
+export async function rejectListing( listingId: string){
+  const listing = await prisma.listing.findUnique({
+    where: {
+      id: listingId,
+    },
+  });
+  
+  if(!listing){
+    throw new AppError("Listing not found", 404);
+  }
+
+  if(listing.deletedAt){
+    throw new AppError("This listing has been deleted", 400);
+  }
+
+  if(listing.status !== "PENDING_REVIEW"){
+    throw new AppError("Only listing pending review can be rejected", 400)
+  }
+
+  const rejectedListing = await prisma.listing.update({
+    where: {
+      id: listingId,
+    },
+    data: {
+      status: "REJECTED",
+    },
+  });
+
+  return rejectedListing;
+}

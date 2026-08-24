@@ -134,3 +134,15 @@ export const submitListingSchema = z.object({
     listingId: z.uuid(),
   }),
 });
+
+export const approveListingSchema = z.object({
+  params: z.object({
+    listingId: z.uuid(),
+  }),
+});
+
+export const rejectListingSchema = z.object({
+  params: z.object({
+    listingId: z.uuid(),
+  }),
+});

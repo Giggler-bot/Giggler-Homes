@@ -1,17 +1,19 @@
-import type { Request, Response } from "express";
+import { response, type Request, type Response } from "express";
 import {
   createListing,
   getActiveListingById,
   getActiveListings,
   submitListingForReview,
   updateListing,
+  approveListing,
+  rejectListing,
 } from "./listing.service.js";
 import {
   Prisma,
   GhanaRegion,
   ListingType,
 } from "../../generated/prisma/client.js";
-
+import { success } from "zod";
 
 export async function createListingController(req: Request, res: Response) {
   const listing = await createListing({
@@ -68,11 +70,11 @@ export async function getActiveListingByIdController(
   });
 }
 
-export async function updateListingController(req: Request<{ listingId: string }> ,res: Response) {
-  const listing = await updateListing(
-    req.params.listingId,
-    req.body,
-  );
+export async function updateListingController(
+  req: Request<{ listingId: string }>,
+  res: Response,
+) {
+  const listing = await updateListing(req.params.listingId, req.body);
 
   res.status(200).json({
     success: true,
@@ -81,14 +83,48 @@ export async function updateListingController(req: Request<{ listingId: string }
   });
 }
 
-export async function submitListingController(req: Request<{ listingId: string}>, res: Response){
-  const listing = await submitListingForReview(
-    req.params.listingId,
-  );
+export async function submitListingController(
+  req: Request<{ listingId: string }>,
+  res: Response,
+) {
+  const listing = await submitListingForReview(req.params.listingId);
 
   res.status(200).json({
     success: true,
     message: "Listing submited for review successfully",
+    data: {
+      listingId: listing.id,
+      status: listing.status,
+    },
+  });
+}
+
+export async function approveListingController(
+  req: Request<{ listingId: string }>,
+  res: Response,
+) {
+  const listing = await approveListing(req.params.listingId);
+
+  res.status(200).json({
+    success: true,
+    message: "Listing approved successfully",
+    data: {
+      listingId: listing.id,
+      status: listing.status,
+      publishedAt: listing.publishedAt,
+    },
+  });
+}
+
+export async function rejectListingController(
+  req: Request<{ listingId: string }>,
+  res: Response,
+) {
+  const listing = await rejectListing(req.params.listingId);
+
+  res.status(200).json({
+    success: true,
+    message: "Listing rejected successfully",
     data: {
       listingId: listing.id,
       status: listing.status,
