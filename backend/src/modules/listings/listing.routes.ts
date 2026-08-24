@@ -8,17 +8,25 @@ import { authorizeListingOwner } from "../../middleware/authorizeListingOwner.js
 
 import {
   approveListingSchema,
+  archiveListingSchema,
   createListingSchema,
+  expireListingSchema,
   getListingsQuerySchema,
+  markListingRentedSchema,
+  markListingSoldSchema,
   rejectListingSchema,
   submitListingSchema,
   updateListingSchema,
 } from "./listing.validation.js";
 import {
   approveListingController,
+  archiveListingController,
   createListingController,
+  expireListingController,
   getActiveListingByIdController,
   getActiveListingsController,
+  markListingRentedController,
+  markListingSoldController,
   rejectListingController,
   submitListingController,
   updateListingController,
@@ -74,6 +82,37 @@ listingRouter.post(
   authorizeRoles("ADMIN"),
   validateRequest(rejectListingSchema),
   rejectListingController,
+);
+
+listingRouter.post("/:listingId/expire",
+  authenticate,
+  authorizeRoles("ADMIN"),
+  validateRequest(expireListingSchema),
+  expireListingController,
+)
+
+listingRouter.post(
+  "/:listingId/sold",
+  authenticate,
+  authorizeRoles("ADMIN"),
+  validateRequest(markListingSoldSchema),
+  markListingSoldController,
+);
+
+listingRouter.post(
+  "/:listingId/rented",
+  authenticate,
+  authorizeRoles("ADMIN"),
+  validateRequest(markListingRentedSchema),
+  markListingRentedController,
+);
+
+listingRouter.post(
+  "/:listingId/archive",
+  authenticate,
+  authorizeRoles("ADMIN"),
+  validateRequest(archiveListingSchema),
+  archiveListingController,
 );
 
 export default listingRouter;

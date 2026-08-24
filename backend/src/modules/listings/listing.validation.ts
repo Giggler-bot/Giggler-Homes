@@ -146,3 +146,27 @@ export const rejectListingSchema = z.object({
     listingId: z.uuid(),
   }),
 });
+
+export const expireListingSchema = z.object({
+  params: z.object({
+    listingId: z.uuid(),
+  }),
+});
+
+export const markListingSoldSchema = z.object({
+  params: z.object({
+    listingId: z.uuid(),
+  }),
+});
+
+export const markListingRentedSchema = z.object({
+  params: z.object({
+    listingId: z.uuid(),
+  }),
+});
+
+export const archiveListingSchema = z.object({
+  params: z.object({
+    listingId: z.uuid(),
+  }),
+});

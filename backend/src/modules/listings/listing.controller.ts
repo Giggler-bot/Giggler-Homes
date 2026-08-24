@@ -7,6 +7,10 @@ import {
   updateListing,
   approveListing,
   rejectListing,
+  expireListing,
+  markListingAsSold,
+  markListingAsRented,
+  archiveListing,
 } from "./listing.service.js";
 import {
   Prisma,
@@ -125,6 +129,72 @@ export async function rejectListingController(
   res.status(200).json({
     success: true,
     message: "Listing rejected successfully",
+    data: {
+      listingId: listing.id,
+      status: listing.status,
+    },
+  });
+}
+
+export async function expireListingController(
+  req: Request<{ listingId: string }>,
+  res: Response,
+) {
+  const listing = await expireListing(req.params.listingId);
+
+  res.status(200).json({
+    success: true,
+    message: "Listing expired successfully",
+    data: {
+      listingId: listing.id,
+      status: listing.status,
+    },
+  });
+}
+
+export async function markListingSoldController(
+  req: Request<{ listingId: string }>,
+  res: Response,
+) {
+  const listing = await markListingAsSold(req.params.listingId);
+
+  res.status(200).json({
+    success: true,
+    message: "Listing marked as sold successfully",
+    data: {
+      listingId: listing.id,
+      status: listing.status,
+    },
+  });
+}
+
+export async function markListingRentedController(
+  req: Request<{ listingId: string }>,
+  res: Response,
+) {
+  const listing = await markListingAsRented(req.params.listingId);
+
+  res.status(200).json({
+    success: true,
+    message: "Listing marked as rented successfully",
+    data: {
+      listingId: listing.id,
+      status: listing.status,
+    },
+  });
+}
+
+export async function archiveListingController(
+   req: Request<{ listingId: string }>,
+  res: Response,
+) {
+  const listing = await archiveListing(
+    req.params.listingId,
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Listing archived successfully",
     data: {
       listingId: listing.id,
       status: listing.status,

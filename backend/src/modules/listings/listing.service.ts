@@ -279,7 +279,7 @@ export async function updateListing(
   return updatedListing;
 }
 
-export async function submitListingForReview(listingId: string,){
+export async function submitListingForReview(listingId: string) {
   const listing = await prisma.listing.findUnique({
     where: {
       id: listingId,
@@ -294,37 +294,33 @@ export async function submitListingForReview(listingId: string,){
     },
   });
 
-  if(!listing){
+  if (!listing) {
     throw new AppError("Listing not found", 404);
   }
 
-  if(listing.deletedAt){
+  if (listing.deletedAt) {
     throw new AppError("This listing has been deleted", 400);
   }
 
-  if(listing.status !== "DRAFT"){
+  if (listing.status !== "DRAFT") {
     throw new AppError("Only draft listings can be submitted for reviw", 400);
   }
 
-  if(!listing.property){
+  if (!listing.property) {
     throw new AppError("Listing must have a property", 400);
   }
 
-  if(!listing.property.location){
+  if (!listing.property.location) {
     throw new AppError("Property must have a location before submission", 400);
   }
 
-  if(listing.price.lte(0)){
+  if (listing.price.lte(0)) {
     throw new AppError("Listing price must be greater than zero", 400);
   }
 
-  const rentalListingTypes = [
-    "RENT",
-    "LEASE",
-    "SHORT_STAY",
-  ];
+  const rentalListingTypes = ["RENT", "LEASE", "SHORT_STAY"];
 
-  if(rentalListingTypes.includes(listing.listingType) && !listing.rentPeriod ){
+  if (rentalListingTypes.includes(listing.listingType) && !listing.rentPeriod) {
     throw new AppError("Rent period is required for this listing type", 400);
   }
 
@@ -333,30 +329,29 @@ export async function submitListingForReview(listingId: string,){
       id: listingId,
     },
     data: {
-      status: "PENDING_REVIEW"
+      status: "PENDING_REVIEW",
     },
   });
 
   return submitedListing;
-
 }
 
-export async function approveListing( listingId: string, ){
+export async function approveListing(listingId: string) {
   const listing = await prisma.listing.findUnique({
     where: {
       id: listingId,
     },
   });
 
-  if(!listing){
+  if (!listing) {
     throw new AppError("Listing not found", 404);
   }
 
-  if(listing.deletedAt){
+  if (listing.deletedAt) {
     throw new AppError("This listing has been deleted", 400);
   }
 
-  if(listing.status !== "PENDING_REVIEW") {
+  if (listing.status !== "PENDING_REVIEW") {
     throw new AppError("Only listings pending review can be approved", 400);
   }
 
@@ -373,23 +368,23 @@ export async function approveListing( listingId: string, ){
   return approvedListing;
 }
 
-export async function rejectListing( listingId: string){
+export async function rejectListing(listingId: string) {
   const listing = await prisma.listing.findUnique({
     where: {
       id: listingId,
     },
   });
-  
-  if(!listing){
+
+  if (!listing) {
     throw new AppError("Listing not found", 404);
   }
 
-  if(listing.deletedAt){
+  if (listing.deletedAt) {
     throw new AppError("This listing has been deleted", 400);
   }
 
-  if(listing.status !== "PENDING_REVIEW"){
-    throw new AppError("Only listing pending review can be rejected", 400)
+  if (listing.status !== "PENDING_REVIEW") {
+    throw new AppError("Only listing pending review can be rejected", 400);
   }
 
   const rejectedListing = await prisma.listing.update({
@@ -402,4 +397,180 @@ export async function rejectListing( listingId: string){
   });
 
   return rejectedListing;
+}
+
+export async function expireListing(listingId: string) {
+  const listing = await prisma.listing.findUnique({
+    where: {
+      id: listingId,
+    },
+  });
+
+  if (!listing) {
+    throw new AppError("Listing not found", 404);
+  }
+
+  if (listing.deletedAt) {
+    throw new AppError("This listing has been deleted", 400);
+  }
+
+  if (listing.status !== "ACTIVE") {
+    throw new AppError("Only active listings can expire", 400);
+  }
+
+  if (!listing.expiresAt) {
+    throw new AppError("This listing does not have an expiration date", 400);
+  }
+
+  if (listing.expiresAt > new Date()) {
+    throw new AppError("This listing has not reached its expiration date", 400);
+  }
+
+  const expiredListing = await prisma.listing.update({
+    where: {
+      id: listingId,
+    },
+    data: {
+      status: "EXPIRED",
+    },
+  });
+
+  return expiredListing;
+}
+
+export async function markListingAsSold(
+  listingId: string,
+) {
+  const listing = await prisma.listing.findUnique({
+    where: {
+      id: listingId,
+    },
+  });
+
+  if (!listing) {
+    throw new AppError(
+      "Listing not found",
+      404,
+    );
+  }
+
+  if (listing.deletedAt) {
+    throw new AppError(
+      "This listing has been deleted",
+      400,
+    );
+  }
+
+  if (listing.status !== "ACTIVE") {
+    throw new AppError(
+      "Only active listings can be marked as sold",
+      400,
+    );
+  }
+
+  const soldListing = await prisma.listing.update({
+    where: {
+      id: listingId,
+    },
+    data: {
+      status: "SOLD",
+    },
+  });
+
+  return soldListing;
+}
+
+
+export async function markListingAsRented(
+  listingId: string,
+) {
+  const listing = await prisma.listing.findUnique({
+    where: {
+      id: listingId,
+    },
+  });
+
+  if (!listing) {
+    throw new AppError(
+      "Listing not found",
+      404,
+    );
+  }
+
+  if (listing.deletedAt) {
+    throw new AppError(
+      "This listing has been deleted",
+      400,
+    );
+  }
+
+  if (listing.status !== "ACTIVE") {
+    throw new AppError(
+      "Only active listings can be marked as rented",
+      400,
+    );
+  }
+
+  const rentedListing = await prisma.listing.update({
+    where: {
+      id: listingId,
+    },
+    data: {
+      status: "RENTED",
+    },
+  });
+
+  return rentedListing;
+}
+
+export async function archiveListing(
+  listingId: string
+) {
+  const listing = await prisma.listing.findUnique({
+    where: {
+      id: listingId,
+    },
+  });
+
+   if (!listing) {
+    throw new AppError(
+      "Listing not found",
+      404,
+    );
+  }
+
+  if (listing.deletedAt) {
+    throw new AppError(
+      "This listing has been deleted",
+      400,
+    );
+  }
+
+  const archivableStatuses = [
+     "ACTIVE",
+    "EXPIRED",
+    "SOLD",
+    "RENTED",
+    "REJECTED",
+  ]
+
+
+  if (!archivableStatuses.includes(listing.status)) {
+    throw new AppError(
+      "This listing cannot be archived in its current state",
+      400,
+    );
+  }
+
+  const archiveListing = await prisma.listing.update({
+    where: {
+      id: listingId,
+    },
+    data: {
+      status: "ARCHIVED",
+    },
+  });
+
+  return archiveListing;
+  
 }
