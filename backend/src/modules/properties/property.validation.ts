@@ -21,3 +21,14 @@ export const createPropertySchema = z.object({
     isFurnished: z.boolean().default(false),
   }),
 });
+
+
+export const updatePropertyAvailabilitySchema = z.object({
+  params: z.object({
+    propertyId: z.uuid(),
+  }),
+
+  body: z.object({
+    isAvailable: z.boolean(),
+  }),
+});

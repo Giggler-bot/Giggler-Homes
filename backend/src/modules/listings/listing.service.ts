@@ -438,9 +438,7 @@ export async function expireListing(listingId: string) {
   return expiredListing;
 }
 
-export async function markListingAsSold(
-  listingId: string,
-) {
+export async function markListingAsSold(listingId: string) {
   const listing = await prisma.listing.findUnique({
     where: {
       id: listingId,
@@ -448,24 +446,15 @@ export async function markListingAsSold(
   });
 
   if (!listing) {
-    throw new AppError(
-      "Listing not found",
-      404,
-    );
+    throw new AppError("Listing not found", 404);
   }
 
   if (listing.deletedAt) {
-    throw new AppError(
-      "This listing has been deleted",
-      400,
-    );
+    throw new AppError("This listing has been deleted", 400);
   }
 
   if (listing.status !== "ACTIVE") {
-    throw new AppError(
-      "Only active listings can be marked as sold",
-      400,
-    );
+    throw new AppError("Only active listings can be marked as sold", 400);
   }
 
   const soldListing = await prisma.listing.update({
@@ -480,10 +469,7 @@ export async function markListingAsSold(
   return soldListing;
 }
 
-
-export async function markListingAsRented(
-  listingId: string,
-) {
+export async function markListingAsRented(listingId: string) {
   const listing = await prisma.listing.findUnique({
     where: {
       id: listingId,
@@ -491,24 +477,15 @@ export async function markListingAsRented(
   });
 
   if (!listing) {
-    throw new AppError(
-      "Listing not found",
-      404,
-    );
+    throw new AppError("Listing not found", 404);
   }
 
   if (listing.deletedAt) {
-    throw new AppError(
-      "This listing has been deleted",
-      400,
-    );
+    throw new AppError("This listing has been deleted", 400);
   }
 
   if (listing.status !== "ACTIVE") {
-    throw new AppError(
-      "Only active listings can be marked as rented",
-      400,
-    );
+    throw new AppError("Only active listings can be marked as rented", 400);
   }
 
   const rentedListing = await prisma.listing.update({
@@ -523,37 +500,28 @@ export async function markListingAsRented(
   return rentedListing;
 }
 
-export async function archiveListing(
-  listingId: string
-) {
+export async function archiveListing(listingId: string) {
   const listing = await prisma.listing.findUnique({
     where: {
       id: listingId,
     },
   });
 
-   if (!listing) {
-    throw new AppError(
-      "Listing not found",
-      404,
-    );
+  if (!listing) {
+    throw new AppError("Listing not found", 404);
   }
 
   if (listing.deletedAt) {
-    throw new AppError(
-      "This listing has been deleted",
-      400,
-    );
+    throw new AppError("This listing has been deleted", 400);
   }
 
   const archivableStatuses = [
-     "ACTIVE",
+    "ACTIVE",
     "EXPIRED",
     "SOLD",
     "RENTED",
     "REJECTED",
-  ]
-
+  ];
 
   if (!archivableStatuses.includes(listing.status)) {
     throw new AppError(
@@ -572,5 +540,4 @@ export async function archiveListing(
   });
 
   return archiveListing;
-  
 }

@@ -4,10 +4,10 @@ import { authenticate } from "../../middleware/authenticate.js";
 import { authorizeRoles } from "../../middleware/authorizeRoles.js";
 import { authorizepropertyOwner } from "../../middleware/authorizePropertyOwner.js";
 
-import { createPropertycontroller } from "./property.controller.js";
+import { createPropertycontroller, updatePropertyAvailabilityController } from "./property.controller.js";
 
 import { validateRequest } from "../../middleware/validateRequest.js";
-import { createPropertySchema } from "./property.validation.js";
+import { createPropertySchema, updatePropertyAvailabilitySchema } from "./property.validation.js";
 
 const propertyRouter = Router();
 
@@ -26,4 +26,17 @@ propertyRouter.patch(
   authorizepropertyOwner(),
 );
 
+propertyRouter.patch(
+  "/:propertyId/availability",
+  authenticate,
+  authorizeRoles(
+    "OWNER",
+    "AGENCY",
+    "HOTEL",
+    "ADMIN",
+  ),
+  validateRequest(updatePropertyAvailabilitySchema),
+  authorizepropertyOwner(),
+  updatePropertyAvailabilityController,
+);
 export default propertyRouter;

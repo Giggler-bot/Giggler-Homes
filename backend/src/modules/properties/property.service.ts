@@ -1,5 +1,6 @@
 import { prisma } from "../../lib/prisma.js";
 import { generateSlug } from "../../common/utils/slug.js";
+import { AppError } from "../../common/errors/AppError.js";
 
 type CreatePropertyInput = {
   ownerId: string;
@@ -36,4 +37,35 @@ export async function createProperty(data: CreatePropertyInput) {
       isFurnished: data.isFurnished ?? false,
     },
   });
+}
+
+export async function updatePropertyAvailability(
+  propertyId: string,
+  isAvailable: boolean,
+) {
+  const property = await prisma.property.findUnique({
+    where: {
+      id: propertyId,
+    },
+  });
+
+  if (!property) {
+    throw new AppError("Property not found", 404);
+  }
+
+  if (property.deletedAt) {
+    throw new AppError("This property has been deleted", 400);
+  }
+
+  const updatedProperty = await prisma.property.update({
+    where: {
+      id: propertyId,
+    },
+
+    data: {
+      isAvailable,
+    },
+  });
+
+  return updatedProperty;
 }
