@@ -7,8 +7,8 @@
 **Database:** Neon PostgreSQL
 **Authentication:** JWT and bcryptjs
 **Validation:** Zod
-**Current Progress:** Phase 6 Complete — Authentication
-**Next Phase:** Phase 7 — Role-Based Authorization
+**Current Progress:** Phase 9 Complete — Listings
+**Next Milestone:** Documentation — Backend Development + Architecture
 
 ---
 
@@ -30,7 +30,7 @@
 14. [Security Decisions](#security-decisions)
 15. [Problems Solved](#problems-solved)
 16. [Testing Checklist](#testing-checklist)
-17. [Next Phase](#next-phase)
+17. [Documentation Milestone](#documentation-milestone)
 18. [Development Update Template](#development-update-template)
 
 ---
@@ -346,31 +346,28 @@ JSON response
 
 # 5. Development Phases
 
-| Phase    | Feature                             | Status   |
-| -------- | ------------------------------------ | -------- |
-| Phase 1  | Express + TypeScript foundation     | Complete |
-| Phase 2  | Environment configuration           | Complete |
-| Phase 3  | API structure and error handling    | Complete |
-| Phase 4  | Neon PostgreSQL + Prisma            | Complete |
-| Phase 5  | User database model                 | Complete |
-| Phase 6A | User registration                   | Complete |
-| Phase 6B | Login + JWT generation              | Complete |
-| Phase 6C | JWT verification + protected routes | Complete |
-| Phase 7  | Role-Based Authorization            | Next     |
-| Phase 8  | User management                     | Planned  |
-| Phase 9  | Property management                 | Planned  |
-| Phase 10 | Listings                            | Planned  |
-| Phase 11 | Media uploads                       | Planned  |
-| Phase 12 | Amenities                           | Planned  |
-| Phase 13 | Favorites                           | Planned  |
-| Phase 14 | Inquiries                           | Planned  |
-| Phase 15 | Reports and moderation              | Planned  |
-| Phase 16 | Verification                        | Planned  |
-| Phase 17 | Admin features                      | Planned  |
-| Phase 18 | Testing and API documentation       | Planned  |
-| Phase 19 | Deployment                          | Planned  |
+The backend is being built incrementally. Each phase is implemented, tested, and documented before the next major domain is started.
 
----
+| Phase | Feature | Status |
+|---|---|---|
+| Phase 1 | Express + TypeScript foundation | Complete |
+| Phase 2 | Environment configuration | Complete |
+| Phase 3 | API structure and error handling | Complete |
+| Phase 4 | PostgreSQL + Neon + Prisma | Complete |
+| Phase 5 | User database foundation | Complete |
+| Phase 6 | Authentication | Complete |
+| Phase 7 | Role-Based Authorization | Complete |
+| Phase 8 | Property Foundation | Complete |
+| Phase 9 | Listings | Complete |
+| Phase 10 | Media Management | Next |
+| Phase 11 | Amenities | Planned |
+| Phase 12 | Favorites | Planned |
+| Phase 13 | Inquiries | Planned |
+| Phase 14 | Verification | Planned |
+| Phase 15 | Reports and Moderation | Planned |
+| Phase 16 | Administration | Planned |
+| Phase 17 | Testing + API Documentation | Planned |
+| Phase 18 | Deployment | Planned |
 
 # Phase 1 — Express and TypeScript Foundation
 
@@ -2045,3 +2042,560 @@ Objectives
 * Sale listings
 * Listing retrieval APIs
 * Listing search and filtering
+---
+
+# Phase 9 — Listings
+
+**Status:** Complete 🔥
+
+## Goal
+
+Build the Listing domain on top of the Property foundation.
+
+The Listing model represents a market-facing offer for a property, while the Property model represents the underlying real-world property.
+
+A property can therefore exist independently of a particular listing.
+
+## Listing Database Model
+
+The Listing model currently contains:
+
+```text
+id
+propertyId
+listingType
+status
+price
+currency
+rentPeriod
+negotiable
+isFeatured
+availabilityConfirmedAt
+publishedAt
+expiresAt
+viewCount
+createdAt
+updatedAt
+deletedAt
+```
+
+The Listing belongs to a Property:
+
+```text
+Property
+    │
+    └── Listing[]
+```
+
+A Listing references exactly one Property.
+
+## Listing Enums
+
+### ListingType
+
+```text
+RENT
+SALE
+SHORT_STAY
+LEASE
+```
+
+### ListingStatus
+
+```text
+DRAFT
+PENDING_REVIEW
+ACTIVE
+REJECTED
+EXPIRED
+SOLD
+RENTED
+ARCHIVED
+```
+
+### RentPeriod
+
+```text
+DAILY
+WEEKLY
+MONTHLY
+YEARLY
+```
+
+## Listing Development Workflow
+
+The Listing module followed the project's incremental development philosophy:
+
+```text
+Schema
+  ↓
+Migration
+  ↓
+Prisma Client
+  ↓
+Validation
+  ↓
+Service
+  ↓
+Controller
+  ↓
+Routes
+  ↓
+Authorization
+  ↓
+Testing
+  ↓
+Documentation
+```
+
+## Listing Creation
+
+The create-listing workflow validates:
+
+* The referenced property exists.
+* The property is available.
+* The requested listing data is valid.
+* The authenticated user is authorized to create the listing for the property.
+
+The owner relationship is enforced through the existing property ownership authorization system.
+
+## Listing Retrieval
+
+The Listing module supports retrieval of active listings.
+
+Implemented capabilities include:
+
+* Listing retrieval
+* Single listing retrieval
+* Pagination
+* Filtering
+* Price filtering
+* Listing type filtering
+* Property-level filtering
+* Location/region filtering
+* Property type filtering
+* Bedroom filtering
+* Bathroom filtering
+* Furnished-property filtering
+* Featured listing ordering
+
+The active listing query excludes deleted records.
+
+Pagination uses:
+
+```text
+page
+limit
+skip
+take
+total
+totalPages
+```
+
+The service explicitly supplies numeric pagination values to Prisma, including `skip`, to avoid Prisma 7 validation errors when optional pagination values are undefined.
+
+## Listing Update
+
+Listing updates are protected by authentication and authorization.
+
+The backend distinguishes:
+
+```text
+Role Authorization
+        ↓
+Can this role perform this operation?
+
+Resource Ownership Authorization
+        ↓
+Does this user own this property/listing?
+```
+
+Administrators can bypass ownership restrictions where the route permits administrative access.
+
+## Listing Submission
+
+Draft listings can be submitted for review.
+
+```text
+DRAFT
+   │
+   │ submit
+   ▼
+PENDING_REVIEW
+```
+
+The submission endpoint is protected and validated before the business operation is performed.
+
+## Listing Moderation
+
+Administrators can approve or reject listings.
+
+```text
+PENDING_REVIEW
+      │
+      ├── approve ──→ ACTIVE
+      │
+      └── reject ───→ REJECTED
+```
+
+This keeps moderation decisions separate from normal owner operations.
+
+## Listing Lifecycle
+
+The implemented lifecycle is:
+
+```text
+                         DRAFT
+                           │
+                         submit
+                           ▼
+                    PENDING_REVIEW
+                      │          │
+                   approve      reject
+                      │          │
+                      ▼          ▼
+                    ACTIVE     REJECTED
+                      │
+          ┌───────────┼───────────┐
+          │           │           │
+        expire       sold       rented
+          │           │           │
+          ▼           ▼           ▼
+       EXPIRED       SOLD       RENTED
+          │           │           │
+          └───────────┴───────────┘
+                      │
+                    archive
+                      │
+                      ▼
+                   ARCHIVED
+```
+
+Terminal/business outcome states cannot be incorrectly transitioned into one another.
+
+Examples:
+
+```text
+SOLD    → RENTED   ❌
+RENTED  → SOLD     ❌
+EXPIRED → SOLD     ❌
+```
+
+## Expiration
+
+Active listings can be marked as expired through the dedicated lifecycle operation.
+
+Expiration is a listing lifecycle transition and is not the same thing as deleting the database record.
+
+## Sold
+
+An active listing can be marked as:
+
+```text
+SOLD
+```
+
+Only an authorized administrative operation can perform the lifecycle transition.
+
+## Rented
+
+An active listing can be marked as:
+
+```text
+RENTED
+```
+
+The operation is separate from SOLD because renting and selling represent different business outcomes.
+
+## Archive
+
+Archiving is separate from deletion.
+
+```text
+ARCHIVED
+```
+
+means the listing is no longer part of the active marketplace lifecycle while its record can still be retained.
+
+This is distinct from:
+
+```text
+deletedAt
+```
+
+which represents the database's soft-deletion state.
+
+## Availability Management
+
+Property availability and listing lifecycle were intentionally kept as separate concepts.
+
+```text
+Property.isAvailable
+        ≠
+Listing.status
+```
+
+The availability endpoint updates the property's availability:
+
+```http
+PATCH /api/v1/properties/:propertyId/availability
+```
+
+Example:
+
+```json
+{
+  "isAvailable": false
+}
+```
+
+This does **not** automatically change the Listing status.
+
+For example:
+
+```text
+Property.isAvailable = false
+Listing.status       = ACTIVE
+```
+
+is a valid state under the current architecture.
+
+This separation prevents accidental coupling between property availability and the lifecycle of an individual listing.
+
+## Validation
+
+Listing requests use Zod validation.
+
+Validation occurs before service-layer business logic.
+
+A notable Express 5 consideration was discovered during pagination/filter development: `req.query` is getter-backed. The validation middleware therefore uses `Object.defineProperty()` when replacing the parsed query object rather than assigning directly to `req.query`.
+
+Current pattern:
+
+```ts
+if (data.query !== undefined) {
+  Object.defineProperty(req, "query", {
+    value: data.query,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+}
+```
+
+## Authorization Architecture
+
+Listing operations use the existing authorization layers.
+
+Typical protected flow:
+
+```text
+Request
+  ↓
+authenticate
+  ↓
+authorizeRoles
+  ↓
+validateRequest
+  ↓
+authorizePropertyOwner
+  ↓
+Controller
+  ↓
+Service
+  ↓
+Prisma
+```
+
+The exact middleware combination depends on the operation.
+
+Administrative lifecycle operations are restricted to the appropriate administrative role.
+
+## Important Listing Design Decisions
+
+### 1. Listing status is controlled through dedicated operations
+
+Clients should not arbitrarily change lifecycle states through a general update request.
+
+Operations such as:
+
+```text
+submit
+approve
+reject
+expire
+sold
+rented
+archive
+```
+
+are represented as explicit business operations.
+
+### 2. Property and Listing are separate domains
+
+A Property represents the underlying property.
+
+A Listing represents an offer involving that property.
+
+This allows a property to have multiple listings over its lifetime.
+
+### 3. Availability is separate from lifecycle
+
+`Property.isAvailable` is not treated as an alternative name for `Listing.status`.
+
+The two fields have different business meanings.
+
+### 4. Soft deletion remains separate from archiving
+
+```text
+ARCHIVED
+```
+
+is a business lifecycle state.
+
+```text
+deletedAt
+```
+
+is a persistence/deletion state.
+
+### 5. Models and enums are introduced incrementally
+
+The project does not import the entire reference/generated Prisma schema at once.
+
+Models and enums are introduced when the feature requires them.
+
+The generated backend is used as a reference rather than copied wholesale.
+
+## Listing Testing
+
+The Listing domain was tested incrementally.
+
+### Foundation
+
+* [x] Prisma schema
+* [x] Migration
+* [x] Prisma Client generation
+* [x] Type checking
+
+### Creation
+
+* [x] Valid listing creation
+* [x] Invalid property handling
+* [x] Property availability validation
+* [x] Authorization
+* [x] Validation
+
+### Retrieval
+
+* [x] Active listing retrieval
+* [x] Single listing retrieval
+* [x] Pagination
+* [x] Price filtering
+* [x] Region filtering
+* [x] Property filters
+* [x] Combined filters
+* [x] Invalid filter handling
+
+### Management
+
+* [x] Listing update
+* [x] Ownership authorization
+* [x] Submission for review
+* [x] Admin approval
+* [x] Admin rejection
+
+### Lifecycle
+
+* [x] Expire listing
+* [x] Mark listing as SOLD
+* [x] Mark listing as RENTED
+* [x] Archive listing
+* [x] Availability management
+* [x] Invalid lifecycle transitions
+* [x] Authorization failures
+* [x] Invalid UUID handling
+* [x] Nonexistent resource handling
+
+All Listing tests passed successfully.
+
+---
+
+# Documentation Milestone
+
+**Status:** In progress
+
+Phase 9 is complete. Before starting the next major domain, the project pauses to synchronize its documentation with the implementation.
+
+## Documentation Order
+
+```text
+Phase 9 Complete
+      ↓
+Update backend-development.md
+      ↓
+Create architecture.md
+      ↓
+Review architecture against actual implementation
+      ↓
+Phase 10 — Media Management
+```
+
+The architecture document is being started now rather than retroactively after the entire backend has been built.
+
+This is intentional: the architecture should describe the real system as it evolves.
+
+---
+
+# Current Progress Summary
+
+```text
+Phase 1  ✅ Backend Project Setup
+Phase 2  ✅ Express Configuration
+Phase 3  ✅ API Structure and Error Handling
+Phase 4  ✅ PostgreSQL + Neon + Prisma
+Phase 5  ✅ User Database Foundation
+Phase 6  ✅ Authentication
+Phase 7  ✅ Role-Based Authorization
+Phase 8  ✅ Property Foundation
+Phase 9  ✅ Listing Module
+
+Phase 10 ⏭️ Media Management
+```
+
+## Current Project Structure
+
+```text
+Authentication       ✅
+Authorization        ✅
+Property Foundation  ✅
+Listing Module       ✅
+Media Module         ⏳
+Amenities Module     ⏳
+Favorites Module     ⏳
+Inquiry Module       ⏳
+Verification Module  ⏳
+Reports Module       ⏳
+Administration       ⏳
+```
+
+---
+
+# Documentation Rule Going Forward
+
+After each major domain is completed:
+
+```text
+Implementation
+     ↓
+Testing
+     ↓
+Documentation
+     ↓
+Architecture review
+     ↓
+Next domain
+```
+
+This keeps the documentation synchronized with the actual backend rather than allowing it to become a separate, outdated description of the system.
+
