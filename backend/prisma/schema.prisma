@@ -7,6 +7,70 @@ datasource db {
   provider = "postgresql"
 }
 
+enum UserRole {
+  USER
+  OWNER
+  AGENCY
+  HOTEL
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum GhanaRegion {
+  GREATER_ACCRA
+  ASHANTI
+  CENTRAL
+  EASTERN
+  WESTERN
+  WESTERN_NORTH
+  VOLTA
+  OTI
+  NORTHERN
+  NORTH_EAST
+  SAVANNAH
+  UPPER_EAST
+  UPPER_WEST
+  BONO
+  BONO_EAST
+  AHAFO
+}
+
+enum ListingStatus {
+  DRAFT
+  PENDING_REVIEW
+  ACTIVE
+  REJECTED
+  EXPIRED
+  ARCHIVED
+  SOLD
+  RENTED
+}
+
+enum ListingType {
+  RENT
+  SALE
+  SHORT_STAY
+  LEASE
+}
+
+enum RentPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
 model User {
   id              String     @id @default(uuid())
   email           String     @unique
@@ -52,6 +116,8 @@ model Property {
   location       Location     @relation(fields: [locationId], references: [id])
   owner          User         @relation("PropertyOwner", fields: [ownerId], references: [id])
   propertyType   PropertyType @relation(fields: [propertyTypeId], references: [id])
+  medias         Media[]
+  
 
   @@index([ownerId])
   @@index([locationId])
@@ -131,61 +197,24 @@ model Listing {
   @@index([deletedAt])
 }
 
-enum UserRole {
-  USER
-  OWNER
-  AGENCY
-  HOTEL
-  ADMIN
-}
+model Media {
+  id         String    @id @default(uuid())
+  propertyId String
+  type       MediaType
+  url        String
+  publicId   String
+  title      String?
+  altText    String?
+  sortOrder  Int       @default(0)
+  isPrimary  Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAT  DateTime  @updatedAt
+  deleatedAt DateTime
 
-enum UserStatus {
-  ACTIVE
-  INACTIVE
-  SUSPENDED
-  DEACTIVATED
-}
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
-enum GhanaRegion {
-  GREATER_ACCRA
-  ASHANTI
-  CENTRAL
-  EASTERN
-  WESTERN
-  WESTERN_NORTH
-  VOLTA
-  OTI
-  NORTHERN
-  NORTH_EAST
-  SAVANNAH
-  UPPER_EAST
-  UPPER_WEST
-  BONO
-  BONO_EAST
-  AHAFO
-}
-
-enum ListingStatus {
-  DRAFT
-  PENDING_REVIEW
-  ACTIVE
-  REJECTED
-  EXPIRED
-  ARCHIVED
-  SOLD
-  RENTED
-}
-
-enum ListingType {
-  RENT
-  SALE
-  SHORT_STAY
-  LEASE
-}
-
-enum RentPeriod {
-  DAILY
-  WEEKLY
-  MONTHLY
-  YEARLY
+  @@index([propertyId])
+  @@index([type])
+  @@index([isPrimary])
+  @@index([deleatedAt])
 }
