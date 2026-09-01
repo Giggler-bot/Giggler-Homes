@@ -209,12 +209,12 @@ model Media {
   isPrimary  Boolean   @default(false)
   createdAt  DateTime  @default(now())
   updatedAT  DateTime  @updatedAt
-  deleatedAt DateTime
+  deletedAt DateTime?
 
   property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@index([propertyId])
   @@index([type])
   @@index([isPrimary])
-  @@index([deleatedAt])
+  @@index([deletedAt])
 }
