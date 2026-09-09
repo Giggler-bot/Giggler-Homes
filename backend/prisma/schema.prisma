@@ -117,7 +117,6 @@ model Property {
   owner          User         @relation("PropertyOwner", fields: [ownerId], references: [id])
   propertyType   PropertyType @relation(fields: [propertyTypeId], references: [id])
   medias         Media[]
-  
 
   @@index([ownerId])
   @@index([locationId])
@@ -208,8 +207,8 @@ model Media {
   sortOrder  Int       @default(0)
   isPrimary  Boolean   @default(false)
   createdAt  DateTime  @default(now())
-  updatedAT  DateTime  @updatedAt
-  deletedAt DateTime?
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
 
   property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 

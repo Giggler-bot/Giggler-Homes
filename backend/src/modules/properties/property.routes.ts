@@ -9,6 +9,9 @@ import { createPropertycontroller, updatePropertyAvailabilityController } from "
 import { validateRequest } from "../../middleware/validateRequest.js";
 import { createPropertySchema, updatePropertyAvailabilitySchema } from "./property.validation.js";
 
+import { getPropertyMediaController } from "../media/media.controller.js";
+import { getPropertyMediaSchema } from "../media/media.validation.js";
+
 const propertyRouter = Router();
 
 propertyRouter.post(
@@ -39,4 +42,11 @@ propertyRouter.patch(
   authorizepropertyOwner(),
   updatePropertyAvailabilityController,
 );
+
+propertyRouter.get(
+  "/:propertyId/media",
+  validateRequest(getPropertyMediaSchema),
+  getPropertyMediaController,
+);
+
 export default propertyRouter;
