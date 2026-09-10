@@ -1,10 +1,23 @@
 import type { Request, Response } from "express";
+import { AppError } from "../../common/errors/AppError.js";
 
-import { createMedia, deleteMedia, getMediaById, getPropertyMedia, updateMedia } from "./media.service.js";
-
+import {
+  createMedia,
+  deleteMedia,
+  getMediaById,
+  getPropertyMedia,
+  updateMedia,
+} from "./media.service.js";
 
 export async function createMediaController(req: Request, res: Response) {
-  const media = await createMedia(req.body);
+  if (!req.file) {
+    throw new AppError("Media file is required", 400);
+  }
+
+  const media = await createMedia({
+    ...req.body,
+    file: req.file,
+  });
   res.status(201).json({
     success: true,
     message: "Media created successfully",
@@ -14,9 +27,11 @@ export async function createMediaController(req: Request, res: Response) {
   });
 }
 
-
-export async function getPropertyMediaController(req: Request<{ propertyId: string }>, res: Response) {
-  const media = await getPropertyMedia(req.params.propertyId); 
+export async function getPropertyMediaController(
+  req: Request<{ propertyId: string }>,
+  res: Response,
+) {
+  const media = await getPropertyMedia(req.params.propertyId);
   res.status(200).json({
     success: true,
     message: "Property media retrieved successfully",
@@ -26,7 +41,10 @@ export async function getPropertyMediaController(req: Request<{ propertyId: stri
   });
 }
 
-export async function getMediaByIdController(req: Request<{ mediaId: string }>, res: Response) {
+export async function getMediaByIdController(
+  req: Request<{ mediaId: string }>,
+  res: Response,
+) {
   const media = await getMediaById(req.params.mediaId);
 
   res.status(200).json({
@@ -38,8 +56,11 @@ export async function getMediaByIdController(req: Request<{ mediaId: string }>, 
   });
 }
 
-export async function updatemediaController(req: Request<{ mediaId: string }>, res: Response) {
-  const media = await updateMedia(req.params.mediaId, req.body);  
+export async function updatemediaController(
+  req: Request<{ mediaId: string }>,
+  res: Response,
+) {
+  const media = await updateMedia(req.params.mediaId, req.body);
   res.status(200).json({
     success: true,
     message: "Media updated successfully",
@@ -49,7 +70,10 @@ export async function updatemediaController(req: Request<{ mediaId: string }>, r
   });
 }
 
-export async function deleteMediaController(req: Request<{ mediaId: string }>, res: Response) {
+export async function deleteMediaController(
+  req: Request<{ mediaId: string }>,
+  res: Response,
+) {
   const media = await deleteMedia(req.params.mediaId);
   res.status(200).json({
     success: true,
