@@ -31,4 +31,7 @@ export const env = {
   jwtAccessSecret: getRequiredEnv("JWT_ACCESS_SECRET"),
   jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || "15m",
   bcryptSaltRounds: getNumberEnv("BCRYPT_SALT_ROUNDS", 12),
+  cloudinaryCloudName: getRequiredEnv("CLOUDINARY_CLOUD_NAME"),
+  cloudinaryApiKey: getRequiredEnv("CLOUDINARY_API_KEY"),
+  cloudinaryApiSecret: getRequiredEnv("CLOUDINARY_API_SECRET")
 };
