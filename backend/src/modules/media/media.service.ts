@@ -1,12 +1,26 @@
 import { prisma } from "../../lib/prisma.js";
 import { AppError } from "../../common/errors/AppError.js";
-import { SortOrder } from "../../generated/prisma/internal/prismaNamespace.js";
+
+import {
+  uploadMedia,
+  deleteMediaAsset,
+} from "../../services/cloudinary.service.js";
+
+function getMediaType(resourceType: string): "IMAGE" | "VIDEO" {
+  if (resourceType === "image") {
+    return "IMAGE";
+  }
+
+  if (resourceType === "video") {
+    return "VIDEO";
+  }
+
+  throw new AppError("Unsupported Cloudinary resource type", 400);
+}
 
 export async function createMedia(data: {
   propertyId: string;
-  type: "IMAGE" | "VIDEO";
-  url: string;
-  publicId: string;
+  file: Express.Multer.File;
   title?: string;
   altText?: string;
   sortOrder?: number;
@@ -26,33 +40,64 @@ export async function createMedia(data: {
     throw new AppError("This property has been deleted", 400);
   }
 
-  if (data.isPrimary) {
-    await prisma.media.updateMany({
-      where: {
-        propertyId: data.propertyId,
-        isPrimary: true,
-        deletedAt: null,
-      },
-      data: {
-        isPrimary: false,
-      },
-    });
+  let uploadResult;
+
+  try {
+    uploadResult = await uploadMedia(
+      data.file.buffer,
+      `giggler-homes/properties/${data.propertyId}`,
+    );
+  } catch (error) {
+    throw new AppError("Failed to upload media", 500);
   }
 
-  const media = await prisma.media.create({
-    data: {
-      propertyId: data.propertyId,
-      type: data.type,
-      url: data.url,
-      publicId: data.publicId,
-      title: data.title,
-      altText: data.altText,
-      sortOrder: data.sortOrder ?? 0,
-      isPrimary: data.isPrimary ?? false,
-    },
-  });
+  const mediaType = getMediaType(uploadResult.resource_type);
 
-  return media;
+  try {
+    const media = await prisma.$transaction(async (tx) => {
+      if (data.isPrimary === true) {
+        await tx.media.updateMany({
+          where: {
+            propertyId: data.propertyId,
+            isPrimary: true,
+            deletedAt: null,
+          },
+          data: {
+            isPrimary: false,
+          },
+        });
+      }
+
+      return tx.media.create({
+        data: {
+          propertyId: data.propertyId,
+          type: mediaType,
+          url: uploadResult.secure_url,
+          publicId: uploadResult.public_id,
+          title: data.title,
+          altText: data.altText,
+          sortOrder: data.sortOrder ?? 0,
+          isPrimary: data.isPrimary ?? false,
+        },
+      });
+    });
+
+    return media;
+  } catch (error) {
+    try {
+      await deleteMediaAsset(
+        uploadResult.public_id,
+        uploadResult.resource_type === "video" ? "video" : "image",
+      );
+    } catch (cleanupError) {
+      console.error(
+        "Failed to clean up Cloudinary asset after database failure",
+        cleanupError,
+      );
+    }
+
+    throw new AppError("Failed to create media", 500);
+  }
 }
 
 export async function getPropertyMedia(propertyId: string) {
@@ -108,22 +153,23 @@ export async function updateMedia(
     altText?: string;
     sortOrder?: number;
     isPrimary?: boolean;
-  }
+  },
 ) {
   const media = await prisma.media.findUnique({
     where: {
       id: mediaId,
     },
   });
-  
-  if(!media || media.deletedAt) {
+
+  if (!media || media.deletedAt) {
     throw new AppError("Media not found", 404);
   }
 
-  if(data.isPrimary === true){
+  if (data.isPrimary === true) {
     await prisma.$transaction([
       prisma.media.updateMany({
         where: {
+          propertyId: media.propertyId,
           id: {
             not: mediaId,
           },
@@ -153,20 +199,18 @@ export async function updateMedia(
   return prisma.media.findUnique({
     where: {
       id: mediaId,
-    }
-  })
-
+    },
+  });
 }
 
-
-export async function deleteMedia(mediaId: string){
+export async function deleteMedia(mediaId: string) {
   const media = await prisma.media.findUnique({
     where: {
       id: mediaId,
     },
   });
 
-  if(!media || media.deletedAt) {
+  if (!media || media.deletedAt) {
     throw new AppError("Media not found", 404);
   }
 
@@ -182,3 +226,4 @@ export async function deleteMedia(mediaId: string){
 
   return deletedMedia;
 }
+
