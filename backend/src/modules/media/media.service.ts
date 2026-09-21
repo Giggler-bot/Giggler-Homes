@@ -41,6 +41,12 @@ export async function createMedia(data: {
   }
 
   let uploadResult;
+  console.log("FILE DEBUG:", {
+    originalname: data.file.originalname,
+    mimetype: data.file.mimetype,
+    size: data.file.size,
+    bufferSize: data.file.buffer.length,
+  });
 
   try {
     uploadResult = await uploadMedia(
@@ -48,6 +54,7 @@ export async function createMedia(data: {
       `giggler-homes/properties/${data.propertyId}`,
     );
   } catch (error) {
+    console.error("Cloudinary upload failed: ", error);
     throw new AppError("Failed to upload media", 500);
   }
 
@@ -226,4 +233,3 @@ export async function deleteMedia(mediaId: string) {
 
   return deletedMedia;
 }
-

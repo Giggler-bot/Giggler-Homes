@@ -1,7 +1,9 @@
 import { UploadApiResponse } from "cloudinary";
 import cloudinary from "../config/cloudinary.js";
 
-export async function uploadMedia(
+
+
+export function uploadMedia(
   file: Buffer,
   folder: string,
 ): Promise<UploadApiResponse> {
@@ -12,11 +14,13 @@ export async function uploadMedia(
         resource_type: "auto",
       },
       (error, result) => {
-        if (error) {
+        if(error) {
+          console.error("Cloudinary raw upload error: ", error);
           return reject(error);
         }
-        if (!result) {
-          return reject(new Error("Cloudinary upload failed"));
+
+        if(!result) {
+          return reject(new Error("cloudinary upload failed"));
         }
 
         resolve(result);
@@ -33,6 +37,5 @@ export async function deleteMediaAsset(
 ) {
   return cloudinary.uploader.destroy(publicId, {
     resource_type: resourceType,
-  });
+  })
 }
-
