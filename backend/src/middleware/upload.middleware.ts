@@ -1,5 +1,5 @@
 import multer from "multer";
-
+import { AppError } from "../common/errors/AppError.js";
 
 const storage = multer.memoryStorage();
 
@@ -25,7 +25,7 @@ export const uploadMediaFile = multer({
     fileFilter: (_req, file, callback) => {
         if(!allowedMediaTypes.includes(file.mimetype)) {
             return callback(
-                new Error("Unsupported media file type"),
+                new AppError("Unsupported media file type", 400),
             )
         }
 

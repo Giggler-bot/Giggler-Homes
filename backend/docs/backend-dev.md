@@ -7,8 +7,8 @@
 **Database:** Neon PostgreSQL
 **Authentication:** JWT and bcryptjs
 **Validation:** Zod
-**Current Progress:** Phase 9 Complete — Listings
-**Next Milestone:** Documentation — Backend Development + Architecture
+**Current Progress:** Phase 10 Complete — Media Management
+**Next Milestone:** Phase 11 — Amenities
 
 ---
 
@@ -260,6 +260,16 @@ Validation occurs before data reaches the service layer.
 
 ---
 
+## Media Storage
+
+**Cloudinary**
+
+Cloudinary stores uploaded property images and videos.
+
+The backend uses server-side Cloudinary credentials and stores the Cloudinary `secure_url` and `public_id` alongside Media metadata in PostgreSQL.
+
+---
+
 ## Password Security
 
 **bcryptjs**
@@ -359,8 +369,8 @@ The backend is being built incrementally. Each phase is implemented, tested, and
 | Phase 7 | Role-Based Authorization | Complete |
 | Phase 8 | Property Foundation | Complete |
 | Phase 9 | Listings | Complete |
-| Phase 10 | Media Management | Next |
-| Phase 11 | Amenities | Planned |
+| Phase 10 | Media Management | Complete |
+| Phase 11 | Amenities | Next |
 | Phase 12 | Favorites | Planned |
 | Phase 13 | Inquiries | Planned |
 | Phase 14 | Verification | Planned |
@@ -891,12 +901,20 @@ The current user is returned without password information.
 
 # Current API Endpoints
 
-| Method | Endpoint                | Authentication | Status   |
-| ------ | ------------------------ | --------------- | -------- |
-| GET    | `/health`               | Public         | Complete |
-| POST   | `/api/v1/auth/register` | Public         | Complete |
-| POST   | `/api/v1/auth/login`    | Public         | Complete |
-| GET    | `/api/v1/auth/me`       | Required       | Complete |
+The backend now contains completed endpoints across Authentication, Property, Listings, and Media.
+
+| Method | Endpoint | Authentication | Status |
+|---|---|---|---|
+| GET | `/health` | Public | Complete |
+| POST | `/api/v1/auth/register` | Public | Complete |
+| POST | `/api/v1/auth/login` | Public | Complete |
+| GET | `/api/v1/auth/me` | Required | Complete |
+| GET | `/api/v1/properties/:propertyId/media` | Public | Complete |
+| GET | `/api/v1/media/:mediaId` | Public | Complete |
+| POST | `/api/v1/media` | Required | Complete |
+| PATCH | `/api/v1/properties/:propertyId/availability` | Required | Complete |
+
+Additional Property and Listing endpoints are documented in their respective phase sections.
 
 ---
 
@@ -1572,7 +1590,7 @@ This provides a secure foundation for the upcoming Property module.
 
 ## Project Status
 
-**Current Phase:** Phase 8 Complete – Property Foundation
+**Current Phase:** Phase 10 Complete – Media Management
 
 **Project Status:** 🟢 Stable
 
@@ -2523,27 +2541,23 @@ All Listing tests passed successfully.
 
 # Documentation Milestone
 
-**Status:** In progress
+**Status:** Complete for Phase 10
 
-Phase 9 is complete. Before starting the next major domain, the project pauses to synchronize its documentation with the implementation.
+Phase 10 — Media Management has been implemented and tested. This document has now been synchronized with the actual Media implementation before beginning the next major domain.
 
 ## Documentation Order
 
 ```text
-Phase 9 Complete
+Phase 10 Complete
       ↓
 Update backend-development.md
       ↓
-Create architecture.md
-      ↓
 Review architecture against actual implementation
       ↓
-Phase 10 — Media Management
+Phase 11 — Amenities
 ```
 
-The architecture document is being started now rather than retroactively after the entire backend has been built.
-
-This is intentional: the architecture should describe the real system as it evolves.
+The architecture and backend documentation should continue to describe the real implementation as it evolves.
 
 ---
 
@@ -2559,8 +2573,9 @@ Phase 6  ✅ Authentication
 Phase 7  ✅ Role-Based Authorization
 Phase 8  ✅ Property Foundation
 Phase 9  ✅ Listing Module
+Phase 10 ✅ Media Management
 
-Phase 10 ⏭️ Media Management
+Phase 11 ⏭️ Amenities
 ```
 
 ## Current Project Structure
@@ -2570,13 +2585,592 @@ Authentication       ✅
 Authorization        ✅
 Property Foundation  ✅
 Listing Module       ✅
-Media Module         ⏳
-Amenities Module     ⏳
+Media Module         ✅
+Amenities Module     ⏭️
 Favorites Module     ⏳
 Inquiry Module       ⏳
 Verification Module  ⏳
 Reports Module       ⏳
 Administration       ⏳
+```
+
+---
+
+# Phase 10 — Media Management
+
+**Status:** Complete 🔥
+
+## Goal
+
+Build a property media system that stores media metadata in PostgreSQL while using Cloudinary for actual image and video storage.
+
+The Media domain is currently **Property-based**. A Media record belongs directly to a Property rather than to an individual Listing.
+
+## Media Database Model
+
+The current `Media` model contains:
+
+```text
+id
+propertyId
+type
+url
+publicId
+title
+altText
+sortOrder
+isPrimary
+createdAt
+updatedAt
+deletedAt
+```
+
+The model uses:
+
+```text
+MediaType
+├── IMAGE
+└── VIDEO
+```
+
+`publicId` is required because it is the Cloudinary identifier used to manage/delete the uploaded asset.
+
+Media belongs to Property with cascade deletion at the database relationship level:
+
+```text
+Property
+   │
+   └── Media[]
+```
+
+Soft deletion remains supported through `deletedAt`.
+
+> Database cascade deletion and Cloudinary asset deletion are separate concerns. Deleting a database record does not by itself remove the Cloudinary asset, so the application explicitly manages Cloudinary deletion.
+
+## Media Architecture
+
+The Media upload flow is:
+
+```text
+Client
+  ↓
+multipart/form-data
+  ↓
+Multer memoryStorage
+  ↓
+Request validation
+  ↓
+Property ownership authorization
+  ↓
+Media Service
+  ↓
+Cloudinary upload
+  ↓
+Cloudinary response
+  ├── secure_url
+  ├── public_id
+  └── resource_type
+  ↓
+Prisma transaction
+  ↓
+Media record in PostgreSQL
+```
+
+The client does not supply Cloudinary-derived fields such as:
+
+```text
+type
+url
+publicId
+```
+
+The backend derives those values from the Cloudinary response.
+
+## Media Validation
+
+The creation request validates:
+
+```text
+propertyId
+title
+altText
+sortOrder
+isPrimary
+```
+
+Because media is submitted as `multipart/form-data`, fields such as `sortOrder` are coerced from their multipart string representation into numbers.
+
+`isPrimary` is converted from the multipart `"true"` / `"false"` representation into a boolean.
+
+The uploaded file is handled separately by Multer.
+
+## Multer Upload Configuration
+
+Media uploads use:
+
+```text
+multer.memoryStorage()
+```
+
+This provides the Media service with:
+
+```ts
+req.file.buffer
+```
+
+The configured allowed MIME types are:
+
+```text
+image/jpeg
+image/png
+image/webp
+image/gif
+video/mp4
+video/webm
+video/quicktime
+```
+
+The configured maximum file size is:
+
+```text
+50 MB
+```
+
+The file-size limit is configured in Multer. The >50 MB rejection boundary was not directly exercised because the current Postman setup used for testing limits multipart uploads to 5 MB.
+
+Unsupported file types are rejected with:
+
+```http
+400 Bad Request
+```
+
+before the upload reaches Cloudinary.
+
+## Cloudinary Configuration
+
+Cloudinary is configured in:
+
+```text
+src/config/cloudinary.ts
+```
+
+The application reads:
+
+```env
+CLOUDINARY_CLOUD_NAME
+CLOUDINARY_API_KEY
+CLOUDINARY_API_SECRET
+```
+
+The API secret remains server-side and is not returned to clients or logged.
+
+## Cloudinary Service
+
+Cloudinary operations are isolated in the Cloudinary service.
+
+The upload function accepts a `Buffer` because Multer uses `memoryStorage()`:
+
+```ts
+uploadMedia(
+  file: Buffer,
+  folder: string,
+)
+```
+
+The implementation uses Cloudinary's `upload_stream()` with:
+
+```text
+resource_type: "auto"
+```
+
+This allows the same upload primitive to support both images and videos.
+
+The deletion primitive accepts:
+
+```text
+publicId
+resourceType
+```
+
+and calls Cloudinary's destroy operation.
+
+## Cloudinary-to-Prisma Media Type Mapping
+
+Cloudinary uses lowercase resource types:
+
+```text
+image
+video
+```
+
+The Prisma enum uses:
+
+```text
+IMAGE
+VIDEO
+```
+
+The Media service therefore contains a mapping helper:
+
+```ts
+getMediaType(resourceType)
+```
+
+which converts the Cloudinary value into the application's `MediaType` representation.
+
+Unsupported Cloudinary resource types are rejected rather than silently stored.
+
+## Media Creation
+
+The Media creation endpoint is protected by:
+
+```text
+authenticate
+authorizeRoles
+uploadMediaFile.single("file")
+validateRequest
+authorizeMediaPropertyOwner
+createMediaController
+```
+
+Allowed roles are:
+
+```text
+OWNER
+AGENCY
+HOTEL
+ADMIN
+```
+
+Administrators bypass the property ownership restriction.
+
+The creation service first verifies:
+
+1. The property exists.
+2. The property has not been soft deleted.
+
+It then uploads the file to a property-specific Cloudinary folder:
+
+```text
+giggler-homes/properties/{propertyId}
+```
+
+The returned Cloudinary values are stored in the Media record.
+
+## Primary Media
+
+A property can have one active primary media item.
+
+When a new media item is created with:
+
+```text
+isPrimary = true
+```
+
+existing active primary media for the same property is unset before the new record is created.
+
+Both operations occur inside the same Prisma transaction.
+
+This prevents a failed media creation from leaving the property without its previous primary media.
+
+## Transaction and Rollback Strategy
+
+Cloudinary and PostgreSQL are separate systems and cannot participate in one atomic Prisma transaction.
+
+The implementation therefore uses a compensating transaction strategy:
+
+```text
+Multer buffer
+      ↓
+Cloudinary upload
+      ↓
+Prisma transaction
+      ├── unset previous primary when required
+      └── create Media record
+      ↓
+Success
+```
+
+If the Cloudinary upload fails:
+
+```text
+Cloudinary ❌
+     ↓
+No database transaction
+     ↓
+Request fails
+```
+
+If Cloudinary succeeds but the database transaction fails:
+
+```text
+Cloudinary upload ✅
+        ↓
+Prisma transaction ❌
+        ↓
+deleteMediaAsset()
+        ↓
+Cloudinary asset removed
+```
+
+This prevents orphaned Cloudinary assets when database creation fails.
+
+The rollback behavior was explicitly tested successfully.
+
+## Media Retrieval
+
+The Media domain supports:
+
+```text
+GET /api/v1/properties/:propertyId/media
+```
+
+and:
+
+```text
+GET /api/v1/media/:mediaId
+```
+
+Property media retrieval:
+
+* Is publicly accessible.
+* Verifies that the property exists.
+* Excludes soft-deleted media.
+* Orders media by `sortOrder` ascending and then `createdAt` ascending.
+* Returns an empty media collection when a valid property has no media.
+
+## Media Update
+
+Media metadata can be updated without re-uploading the physical asset when the operation only changes database metadata.
+
+Cloudinary-specific identifiers remain tied to the uploaded asset.
+
+## Media Deletion
+
+Media deletion uses the Media identifier and also manages the associated Cloudinary asset.
+
+The database record uses soft deletion through:
+
+```text
+deletedAt
+```
+
+Normal media retrieval excludes soft-deleted records.
+
+Cloudinary deletion is handled separately using:
+
+```text
+publicId
+resourceType
+```
+
+## Authorization Architecture
+
+Media operations use the project's layered authorization model:
+
+```text
+Request
+  ↓
+authenticate
+  ↓
+authorizeRoles
+  ↓
+Multer
+  ↓
+validateRequest
+  ↓
+authorizeMediaPropertyOwner
+  ↓
+Controller
+  ↓
+Service
+  ↓
+Prisma / Cloudinary
+```
+
+The ownership rule is:
+
+```text
+Authenticated user owns the property
+        OR
+Authenticated user is ADMIN
+```
+
+Otherwise the request is rejected with:
+
+```http
+403 Forbidden
+```
+
+A normal `USER` role cannot create media.
+
+## Media Security and Edge Cases
+
+The completed tests include:
+
+### Creation and Upload
+
+* [x] Valid image upload
+* [x] Valid video upload
+* [x] Cloudinary upload
+* [x] Database media creation
+* [x] Cloudinary URL stored
+* [x] Cloudinary public ID stored
+* [x] Cloudinary resource type mapped to Prisma MediaType
+
+### Authorization
+
+* [x] Missing authentication
+* [x] USER role rejected
+* [x] Wrong property owner rejected
+* [x] ADMIN ownership bypass
+* [x] Authorized owner upload
+
+### Validation and File Handling
+
+* [x] Missing file
+* [x] Unsupported `.txt` file rejected
+* [x] Invalid media input
+* [x] Deleted property rejected
+* [x] Configured 50 MB Multer limit
+* [ ] >50 MB rejection boundary not directly tested because of current Postman 5 MB upload limitation
+
+### Primary Media
+
+* [x] First primary media
+* [x] Replacing an existing primary
+* [x] Primary-media transaction rollback
+
+### Retrieval and Deletion
+
+* [x] Property media retrieval
+* [x] Individual media retrieval
+* [x] Soft-deleted media excluded
+* [x] Image deletion
+* [x] Video deletion
+
+### Failure Handling
+
+* [x] Cloudinary upload failure path
+* [x] Database failure after Cloudinary upload
+* [x] Cloudinary compensating cleanup
+* [x] No orphaned Cloudinary asset after tested database failure
+
+## Media Files
+
+The Media implementation includes the following responsibilities:
+
+```text
+src/
+├── config/
+│   └── cloudinary.ts
+│
+├── middleware/
+│   └── upload.middleware.ts
+│
+└── modules/
+    └── media/
+        ├── media.controller.ts
+        ├── media.routes.ts
+        ├── media.service.ts
+        └── media.validation.ts
+```
+
+The Cloudinary service is kept separate from Media business logic so that Cloudinary-specific operations remain isolated.
+
+The exact file path for the Cloudinary service should match the current project structure.
+
+## Important Media Design Decisions
+
+### 1. Cloudinary stores files; PostgreSQL stores metadata
+
+The physical media asset is stored in Cloudinary.
+
+PostgreSQL stores:
+
+```text
+property relationship
+media type
+secure URL
+public ID
+title
+alt text
+sort order
+primary state
+timestamps
+soft-delete state
+```
+
+### 2. The client does not control Cloudinary identifiers
+
+The backend derives:
+
+```text
+url
+publicId
+type
+```
+
+from the Cloudinary response.
+
+### 3. Property-level media in V1
+
+Media belongs directly to Property rather than Listing.
+
+This keeps the initial media model aligned with the property-centric architecture.
+
+### 4. Primary media is a database concern
+
+The primary-media rule is enforced in the Prisma transaction rather than delegated to the client.
+
+### 5. Cloudinary and PostgreSQL use compensating failure handling
+
+A successful Cloudinary upload followed by a failed database transaction triggers an explicit Cloudinary deletion.
+
+### 6. Soft deletion and Cloudinary deletion are separate operations
+
+The database's `deletedAt` state does not automatically remove an external Cloudinary asset. The application explicitly manages the external asset.
+
+## Media Test Summary
+
+All planned Media tests passed except the direct >50 MB boundary test, which could not be executed with the current Postman 5 MB upload limitation.
+
+The Media domain is therefore considered complete for the current development environment.
+
+---
+
+# Next Phase
+
+## Phase 11 — Amenities
+
+The next major backend domain is:
+
+```text
+Amenities
+```
+
+The implementation will continue using the same workflow:
+
+```text
+Schema
+  ↓
+Migration
+  ↓
+Prisma Client
+  ↓
+Validation
+  ↓
+Service
+  ↓
+Controller
+  ↓
+Routes
+  ↓
+Authorization
+  ↓
+Testing
+  ↓
+Documentation
 ```
 
 ---
@@ -2598,4 +3192,3 @@ Next domain
 ```
 
 This keeps the documentation synchronized with the actual backend rather than allowing it to become a separate, outdated description of the system.
-

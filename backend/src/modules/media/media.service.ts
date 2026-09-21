@@ -74,7 +74,7 @@ export async function createMedia(data: {
           },
         });
       }
-
+      
       return tx.media.create({
         data: {
           propertyId: data.propertyId,

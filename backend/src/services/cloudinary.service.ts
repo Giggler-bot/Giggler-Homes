@@ -39,3 +39,16 @@ export async function deleteMediaAsset(
     resource_type: resourceType,
   })
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
