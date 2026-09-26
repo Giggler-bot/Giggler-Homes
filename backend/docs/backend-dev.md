@@ -7,8 +7,8 @@
 **Database:** Neon PostgreSQL
 **Authentication:** JWT and bcryptjs
 **Validation:** Zod
-**Current Progress:** Phase 10 Complete — Media Management
-**Next Milestone:** Phase 11 — Amenities
+**Current Progress:** Phase 11 Complete — Amenities
+**Next Milestone:** Phase 12 — Favorites
 
 ---
 
@@ -370,7 +370,8 @@ The backend is being built incrementally. Each phase is implemented, tested, and
 | Phase 8 | Property Foundation | Complete |
 | Phase 9 | Listings | Complete |
 | Phase 10 | Media Management | Complete |
-| Phase 11 | Amenities | Next |
+| Phase 11 | Amenities | Complete |
+| Phase 12 | Favorites | Planned |
 | Phase 12 | Favorites | Planned |
 | Phase 13 | Inquiries | Planned |
 | Phase 14 | Verification | Planned |
@@ -1590,7 +1591,7 @@ This provides a secure foundation for the upcoming Property module.
 
 ## Project Status
 
-**Current Phase:** Phase 10 Complete – Media Management
+**Current Phase:** Phase 11 Complete – Amenities
 
 **Project Status:** 🟢 Stable
 
@@ -3139,14 +3140,558 @@ The Media domain is therefore considered complete for the current development en
 
 ---
 
+# Phase 11 — Amenities
+
+**Status:** Complete 🔥
+
+## Goal
+
+Build the Amenities domain used to define reusable property features and associate those features with properties.
+
+The Amenities module provides:
+
+* Amenity creation and management
+* Amenity categories
+* Public amenity retrieval
+* Administrative CRUD operations
+* Soft deletion
+* Property-to-amenity assignments
+* Duplicate-assignment protection
+* Case-insensitive amenity-name uniqueness
+
+---
+
+## Phase 11.1 — Database Foundation
+
+### Amenity Model
+
+The current `Amenity` model contains:
+
+```text
+id
+name
+icon
+category
+createdAt
+updatedAt
+deletedAt
+```
+
+### Amenity Category
+
+The current enum is:
+
+```text
+SECURITY
+UTILITIES
+COMFORT
+OUTDOOR
+PARKING
+CONNECTIVITY
+```
+
+### PropertyAmenity Model
+
+Property-to-amenity relationships are represented using a join table:
+
+```text
+Property
+    │
+    └── PropertyAmenity
+             │
+             └── Amenity
+```
+
+The relationship contains:
+
+```text
+propertyId
+amenityId
+createdAt
+```
+
+The composite primary key is:
+
+```prisma
+@@id([propertyId, amenityId])
+```
+
+This prevents the same amenity from being assigned to the same property more than once.
+
+The current database relationships use cascade deletion at the Prisma relation level.
+
+---
+
+## Phase 11.2 — Amenity Validation
+
+Amenity requests use Zod validation.
+
+### Create Amenity
+
+The create request validates:
+
+```text
+name
+icon
+category
+```
+
+Rules include:
+
+* `name` is required.
+* `name` is trimmed.
+* `name` must contain at least one character.
+* `name` has a maximum length of 100 characters.
+* `icon` is optional and trimmed.
+* `icon` has a maximum length of 100 characters.
+* `category` must be one of the supported `AmenityCategory` values.
+
+### Update Amenity
+
+The update request validates:
+
+```text
+amenityId
+name
+icon
+category
+```
+
+The `amenityId` must be a valid UUID.
+
+At least one update field must be provided.
+
+An empty update request is rejected.
+
+### List Amenities
+
+The list endpoint optionally accepts:
+
+```text
+category
+```
+
+Invalid category values are rejected by Zod.
+
+---
+
+## Phase 11.3 — Amenity Service
+
+The Amenity service contains the business logic for amenity management.
+
+### Create
+
+Creating an amenity:
+
+1. Validates the request through Zod.
+2. Checks whether the amenity name already exists.
+3. Creates the amenity when the name is available.
+4. Returns the created record.
+
+Duplicate names return:
+
+```http
+409 Conflict
+```
+
+### List
+
+The list operation:
+
+* Returns only non-deleted amenities.
+* Supports optional category filtering.
+* Orders amenities by name ascending.
+
+Soft-deleted records are excluded.
+
+### Get by ID
+
+The individual retrieval operation:
+
+* Finds only active amenities.
+* Returns `404 Not Found` for nonexistent amenities.
+* Returns `404 Not Found` for soft-deleted amenities.
+
+### Update
+
+Amenity updates:
+
+* Require an active amenity.
+* Support partial updates.
+* Check name conflicts.
+* Return `404 Not Found` when the amenity does not exist.
+* Return `409 Conflict` when the new name conflicts with another amenity.
+
+### Delete
+
+Amenity deletion uses soft deletion:
+
+```text
+deletedAt = current timestamp
+```
+
+The database record remains available for historical relationships and recovery strategies.
+
+A deleted amenity is no longer returned through normal active retrieval endpoints.
+
+---
+
+## Phase 11.4 — Case-Insensitive Name Uniqueness
+
+During testing, PostgreSQL's normal string uniqueness behavior exposed an important edge case.
+
+Without a functional index, these values can be treated as different strings:
+
+```text
+Parking
+parking
+PARKING
+```
+
+For the Giggler Homes business model, these should represent the same logical amenity name.
+
+The database therefore enforces case-insensitive uniqueness using:
+
+```sql
+CREATE UNIQUE INDEX "Amenity_name_lower_key"
+ON "Amenity" (LOWER("name"));
+```
+
+The stored value keeps its original casing.
+
+For example:
+
+```text
+Parking
+```
+
+remains stored as:
+
+```text
+Parking
+```
+
+The system does not silently convert the stored name to lowercase.
+
+### Expected Behavior
+
+```text
+Parking          → allowed
+parking          → 409 Conflict
+PARKING          → 409 Conflict
+"  Parking  "    → 409 Conflict
+```
+
+Whitespace is normalized by the application through trimming before the uniqueness check.
+
+### Soft-Deleted Names
+
+A soft-deleted amenity name remains reserved.
+
+For example:
+
+```text
+Parking
+   ↓
+soft delete
+   ↓
+Parking remains unavailable
+```
+
+This avoids creating multiple historical records for the same logical amenity name.
+
+A future restore/reactivation operation can be introduced if the product requires reusing a soft-deleted amenity.
+
+---
+
+## Phase 11.5 — Amenity API
+
+### Public Endpoints
+
+| Method | Endpoint | Authentication | Status |
+|---|---|---|---|
+| GET | `/api/v1/amenities` | Public | Complete |
+| GET | `/api/v1/amenities/:amenityId` | Public | Complete |
+
+### Administrative Endpoints
+
+| Method | Endpoint | Required Role | Status |
+|---|---|---|---|
+| POST | `/api/v1/amenities` | `ADMIN` | Complete |
+| PATCH | `/api/v1/amenities/:amenityId` | `ADMIN` | Complete |
+| DELETE | `/api/v1/amenities/:amenityId` | `ADMIN` | Complete |
+
+Administrative operations are protected by the existing role authorization middleware.
+
+Normal users and non-administrative property roles cannot create, update, or delete amenities.
+
+---
+
+## Phase 11.6 — Property ↔ Amenity Assignment
+
+The Amenities domain also supports assigning reusable amenities to properties through the `PropertyAmenity` join table.
+
+The relationship is intentionally many-to-many:
+
+```text
+Property A
+   ├── Parking
+   ├── Security
+   └── Wi-Fi
+
+Property B
+   ├── Parking
+   └── Security
+```
+
+An amenity can therefore be shared by many properties, while a property can contain many amenities.
+
+### Assignment Rules
+
+A property-to-amenity assignment must verify:
+
+1. The property exists.
+2. The property is not soft deleted.
+3. The amenity exists.
+4. The amenity is not soft deleted.
+5. The authenticated user is authorized to manage the property.
+6. The same amenity is not already assigned to the property.
+
+The composite primary key prevents duplicate assignments at the database level.
+
+### Authorization
+
+Property amenity management follows the existing ownership model:
+
+```text
+OWNER
+AGENCY
+HOTEL
+ADMIN
+```
+
+A property owner can manage amenities for their own property.
+
+An administrator can bypass ownership restrictions.
+
+A normal `USER` cannot manage property amenities.
+
+---
+
+## Phase 11.7 — Migrations
+
+The Amenities database work introduced two migrations before the final case-insensitive uniqueness constraint:
+
+```text
+20260922102715_add_amenity_model
+20260923104542_remove_amenity_name_unique
+```
+
+Migration `20260923104542_remove_amenity_name_unique` removed the original Prisma `@unique` constraint from `Amenity.name`.
+
+The final case-insensitive uniqueness behavior is enforced through the PostgreSQL functional unique index on:
+
+```text
+LOWER(name)
+```
+
+### Important Migration Safety Lesson
+
+During development, the applied migration file was temporarily modified after Prisma had already recorded its checksum.
+
+Prisma detected the mismatch and reported that the migration had been modified after application.
+
+The migration was restored to its original applied contents, and its SHA-256 checksum was verified against the checksum recorded by the database.
+
+The database was not reset.
+
+The `_prisma_migrations` table was not manually modified.
+
+This reinforced an important rule:
+
+> Once a migration has been applied to the shared development database, its contents must not be casually edited. Create a new migration for subsequent schema changes.
+
+The actual Giggler Homes database is the `neondb` database in the `public` schema. The Prisma shadow database used during migration operations must not be confused with the application's actual database.
+
+---
+
+## Phase 11.8 — Testing
+
+The Amenities module was tested incrementally.
+
+### CRUD
+
+* [x] List amenities
+* [x] Category filtering
+* [x] Invalid category rejected
+* [x] Admin amenity creation
+* [x] Duplicate exact name rejected
+* [x] Missing name rejected
+* [x] Invalid category rejected
+* [x] Non-admin creation rejected
+* [x] Get amenity by ID
+* [x] Invalid UUID rejected
+* [x] Nonexistent amenity returns `404`
+* [x] Update amenity
+* [x] Partial update
+* [x] Empty update rejected
+* [x] Soft delete
+* [x] Deleted amenity returns `404`
+* [x] Deleted amenity excluded from list
+* [x] Second delete returns `404`
+* [x] Database record retained after soft delete
+
+### Edge Cases
+
+* [x] Case-sensitive duplicate test exposed PostgreSQL's default behavior
+* [x] Case-insensitive uniqueness implemented
+* [x] Whitespace trimming verified
+* [x] Update to an existing amenity name rejected
+* [x] Updating a deleted amenity rejected
+* [x] Soft-deleted amenity name remains reserved
+* [x] Duplicate property-amenity assignments prevented by the composite key
+
+### Database
+
+* [x] Prisma schema validation
+* [x] Prisma Client generation
+* [x] Database introspection
+* [x] Migration synchronization
+* [x] Functional unique index for case-insensitive names
+* [x] Duplicate normalized-name cleanup before unique-index creation
+
+All planned Amenities tests passed successfully.
+
+---
+
+## Important Amenities Design Decisions
+
+### 1. Amenities are reusable reference data
+
+Amenities are not stored as free-text values directly on properties.
+
+Instead:
+
+```text
+Property
+   ↓
+PropertyAmenity
+   ↓
+Amenity
+```
+
+This keeps amenity names and categories consistent across the platform.
+
+### 2. Amenities are administered centrally
+
+Only administrators can create, modify, and delete amenity definitions.
+
+Property owners and agencies manage which existing amenities belong to their properties rather than creating arbitrary new amenity definitions.
+
+### 3. Soft deletion is used
+
+Amenities use:
+
+```text
+deletedAt
+```
+
+rather than immediate physical deletion.
+
+This preserves database history and allows future restoration strategies.
+
+### 4. Case-insensitive uniqueness is enforced by PostgreSQL
+
+The application should not be the only protection against duplicate logical names.
+
+The database enforces:
+
+```sql
+UNIQUE (LOWER(name))
+```
+
+This protects the invariant even if another code path attempts to bypass the service-level duplicate check.
+
+### 5. Stored casing is preserved
+
+The system normalizes input for comparison but does not force all stored amenity names to lowercase.
+
+### 6. PropertyAmenity uses a composite primary key
+
+```prisma
+@@id([propertyId, amenityId])
+```
+
+This makes duplicate property-to-amenity assignments impossible at the database level.
+
+### 7. Property ownership remains separate from role authorization
+
+The authorization model continues to distinguish:
+
+```text
+Role authorization
+        ↓
+Can this role manage property amenities?
+
+Ownership authorization
+        ↓
+Does this user own this property?
+```
+
+Administrators can bypass the ownership restriction.
+
+---
+
+## Amenities Module Structure
+
+The Amenities implementation follows the project's modular structure:
+
+```text
+src/modules/amenity/
+├── amenity.controller.ts
+├── amenity.routes.ts
+├── amenity.service.ts
+└── amenity.validation.ts
+```
+
+The PropertyAmenity assignment implementation is part of the property/amenity domain and should remain consistent with the established module architecture.
+
+---
+
+## Phase 11 Result
+
+The Amenities domain is complete.
+
+The backend now supports:
+
+```text
+Amenity definitions
+        ↓
+Amenity categories
+        ↓
+Case-insensitive unique names
+        ↓
+Administrative CRUD
+        ↓
+Soft deletion
+        ↓
+Property ↔ Amenity relationships
+        ↓
+Ownership authorization
+        ↓
+Duplicate-assignment protection
+```
+
+---
+
 # Next Phase
 
-## Phase 11 — Amenities
+## Phase 12 — Favorites
 
 The next major backend domain is:
 
 ```text
-Amenities
+Favorites
 ```
 
 The implementation will continue using the same workflow:
