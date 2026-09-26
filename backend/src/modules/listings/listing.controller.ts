@@ -1,4 +1,4 @@
-import { response, type Request, type Response } from "express";
+import type { Request, Response } from "express";
 import {
   createListing,
   getActiveListingById,
@@ -17,7 +17,7 @@ import {
   GhanaRegion,
   ListingType,
 } from "../../generated/prisma/client.js";
-import { success } from "zod";
+
 
 export async function createListingController(req: Request, res: Response) {
   const listing = await createListing({
