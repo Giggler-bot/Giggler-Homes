@@ -4,10 +4,10 @@ import { authenticate } from "../../middleware/authenticate.js";
 import { authorizeRoles } from "../../middleware/authorizeRoles.js";
 import { authorizepropertyOwner } from "../../middleware/authorizePropertyOwner.js";
 
-import { createPropertycontroller, updatePropertyAvailabilityController } from "./property.controller.js";
+import { assignPropertyAmenityController, createPropertycontroller, getPropertyAmenitiesController, removePropertyAmenityController, updatePropertyAvailabilityController } from "./property.controller.js";
 
 import { validateRequest } from "../../middleware/validateRequest.js";
-import { createPropertySchema, updatePropertyAvailabilitySchema } from "./property.validation.js";
+import { assignPropertyAmenitySchema, createPropertySchema, getPropertyAmenitiesSchema, removePropertyAmenitySchema, updatePropertyAvailabilitySchema } from "./property.validation.js";
 
 import { getPropertyMediaController } from "../media/media.controller.js";
 import { getPropertyMediaSchema } from "../media/media.validation.js";
@@ -43,10 +43,40 @@ propertyRouter.patch(
   updatePropertyAvailabilityController,
 );
 
+
+propertyRouter.post(
+  "/:propertyId/amenities",
+  authenticate,
+  authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
+  validateRequest(assignPropertyAmenitySchema),
+  authorizepropertyOwner(),
+  assignPropertyAmenityController,
+);
+
+
+propertyRouter.get(
+  "/:propertyId/amenities",
+  validateRequest(getPropertyAmenitiesSchema),
+  getPropertyAmenitiesController,
+);
+
+
+
+propertyRouter.delete(
+  "/:propertyId/amenities/:amenityId",
+  authenticate,
+  authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
+  validateRequest(removePropertyAmenitySchema),
+  authorizepropertyOwner(),
+  removePropertyAmenityController,
+);
+
+
 propertyRouter.get(
   "/:propertyId/media",
   validateRequest(getPropertyMediaSchema),
   getPropertyMediaController,
 );
+
 
 export default propertyRouter;

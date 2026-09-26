@@ -33,3 +33,26 @@ export const updatePropertyAvailabilitySchema = z.object({
   }),
 });
 
+export const assignPropertyAmenitySchema = z.object({
+  params: z.object({
+    propertyId: z.uuid(),
+  }),
+
+  body: z.object({
+    amenityId: z.uuid(),
+  }),
+});
+
+export const getPropertyAmenitiesSchema = z.object({
+  params: z.object({
+    propertyId: z.uuid(),
+  }),
+});
+
+export const removePropertyAmenitySchema = z.object({
+  params: z.object({
+    propertyId: z.uuid(),
+    amenityId: z.uuid(),
+  }),
+});
+
