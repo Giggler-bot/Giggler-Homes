@@ -12,7 +12,7 @@ export async function createPropertycontroller(
         ...req.body,
     })
 
-    res.status(200).json({
+    res.status(201).json({
         success: true,
         message: "Property created successfully",
         data: {

@@ -25,7 +25,7 @@ export async function createListingController(req: Request, res: Response) {
     ...req.body,
   });
 
-  res.status(200).json({
+  res.status(201).json({
     success: true,
     message: "Listing created successfully",
     data: listing,

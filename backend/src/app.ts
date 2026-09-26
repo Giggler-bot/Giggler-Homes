@@ -16,6 +16,7 @@ import adminRouter from "./modules/admin/admin.routes.js";
 import propertyRouter from "./modules/properties/property.routes.js";
 import listingRouter from "./modules/listings/listing.routes.js";
 import mediaRouter from "./modules/media/media.routes.js";
+import amenityRouter from "./modules/amenity/amenity.routes.js";
 
 const app = express();
 
@@ -65,6 +66,8 @@ app.use('/api/v1/properties', propertyRouter);
 app.use('/api/v1/listings', listingRouter);
 
 app.use('/api/v1/media', mediaRouter);
+
+app.use('/api/v1/amenities', amenityRouter);
 
 
 // Handles routes that are not found

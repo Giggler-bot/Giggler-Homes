@@ -5,10 +5,10 @@ import { ZodError } from "zod";
 
 import { AppError } from "../common/errors/AppError.js";
 
-export const errorHandler: ErrorRequestHandler = (
-  error, req, res, next
-) => {
-  if(error instanceof ZodError) {
+import { Prisma } from "../generated/prisma/client.js";
+
+export const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
+  if (error instanceof ZodError) {
     res.status(400).json({
       success: false,
       message: "Validation error",
@@ -19,7 +19,7 @@ export const errorHandler: ErrorRequestHandler = (
     return;
   }
 
-  if(error instanceof AppError) {
+  if (error instanceof AppError) {
     res.status(error.statusCode).json({
       success: false,
       message: error.message,
@@ -27,6 +27,16 @@ export const errorHandler: ErrorRequestHandler = (
     return;
   }
 
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === "P2002") {
+      res.status(409).json({
+        success: false,
+        message: "A record with these values already exists",
+      });
+      return;
+    }
+  }
+  
   console.error(error);
 
   res.status(500).json({
@@ -36,4 +46,4 @@ export const errorHandler: ErrorRequestHandler = (
       stack: error.stack,
     }),
   });
-}
+};

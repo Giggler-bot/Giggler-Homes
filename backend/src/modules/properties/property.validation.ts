@@ -32,3 +32,4 @@ export const updatePropertyAvailabilitySchema = z.object({
     isAvailable: z.boolean(),
   }),
 });
+

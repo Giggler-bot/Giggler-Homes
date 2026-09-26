@@ -7,70 +7,6 @@ datasource db {
   provider = "postgresql"
 }
 
-enum UserRole {
-  USER
-  OWNER
-  AGENCY
-  HOTEL
-  ADMIN
-}
-
-enum UserStatus {
-  ACTIVE
-  INACTIVE
-  SUSPENDED
-  DEACTIVATED
-}
-
-enum GhanaRegion {
-  GREATER_ACCRA
-  ASHANTI
-  CENTRAL
-  EASTERN
-  WESTERN
-  WESTERN_NORTH
-  VOLTA
-  OTI
-  NORTHERN
-  NORTH_EAST
-  SAVANNAH
-  UPPER_EAST
-  UPPER_WEST
-  BONO
-  BONO_EAST
-  AHAFO
-}
-
-enum ListingStatus {
-  DRAFT
-  PENDING_REVIEW
-  ACTIVE
-  REJECTED
-  EXPIRED
-  ARCHIVED
-  SOLD
-  RENTED
-}
-
-enum ListingType {
-  RENT
-  SALE
-  SHORT_STAY
-  LEASE
-}
-
-enum RentPeriod {
-  DAILY
-  WEEKLY
-  MONTHLY
-  YEARLY
-}
-
-enum MediaType {
-  IMAGE
-  VIDEO
-}
-
 model User {
   id              String     @id @default(uuid())
   email           String     @unique
@@ -93,30 +29,31 @@ model User {
 }
 
 model Property {
-  id             String       @id @default(uuid())
+  id             String            @id @default(uuid())
   ownerId        String
   title          String
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
   bathrooms      Int?
   bedrooms       Int?
   deletedAt      DateTime?
   description    String
-  isAvailable    Boolean      @default(true)
-  isFeatured     Boolean      @default(false)
-  isFurnished    Boolean      @default(false)
+  isAvailable    Boolean           @default(true)
+  isFeatured     Boolean           @default(false)
+  isFurnished    Boolean           @default(false)
   locationId     String
   parkingSpaces  Int?
   propertyTypeId String
-  slug           String       @unique
+  slug           String            @unique
   squareMeters   Float?
   toilets        Int?
   yearBuilt      Int?
   listing        Listing[]
-  location       Location     @relation(fields: [locationId], references: [id])
-  owner          User         @relation("PropertyOwner", fields: [ownerId], references: [id])
-  propertyType   PropertyType @relation(fields: [propertyTypeId], references: [id])
   medias         Media[]
+  location       Location          @relation(fields: [locationId], references: [id])
+  owner          User              @relation("PropertyOwner", fields: [ownerId], references: [id])
+  propertyType   PropertyType      @relation(fields: [propertyTypeId], references: [id])
+  amenity        PropertyAmenity[]
 
   @@index([ownerId])
   @@index([locationId])
@@ -209,11 +146,108 @@ model Media {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   deletedAt  DateTime?
-
-  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  property   Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@index([propertyId])
   @@index([type])
   @@index([isPrimary])
   @@index([deletedAt])
+}
+
+model Amenity {
+  id         String            @id @default(uuid())
+  name       String
+  icon       String?
+  category   AmenityCategory?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  deletedAt  DateTime?
+  properties PropertyAmenity[]
+
+  @@index([category])
+  @@index([deletedAt])
+}
+
+model PropertyAmenity {
+  propertyId String
+  amenityId  String
+  createdAt  DateTime @default(now())
+  amenity    Amenity  @relation(fields: [amenityId], references: [id], onDelete: Cascade)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@id([propertyId, amenityId])
+  @@index([amenityId])
+}
+
+enum UserRole {
+  USER
+  OWNER
+  AGENCY
+  HOTEL
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum GhanaRegion {
+  GREATER_ACCRA
+  ASHANTI
+  CENTRAL
+  EASTERN
+  WESTERN
+  WESTERN_NORTH
+  VOLTA
+  OTI
+  NORTHERN
+  NORTH_EAST
+  SAVANNAH
+  UPPER_EAST
+  UPPER_WEST
+  BONO
+  BONO_EAST
+  AHAFO
+}
+
+enum ListingStatus {
+  DRAFT
+  PENDING_REVIEW
+  ACTIVE
+  REJECTED
+  EXPIRED
+  ARCHIVED
+  SOLD
+  RENTED
+}
+
+enum ListingType {
+  RENT
+  SALE
+  SHORT_STAY
+  LEASE
+}
+
+enum RentPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum AmenityCategory {
+  SECURITY
+  UTILITIES
+  COMFORT
+  OUTDOOR
+  PARKING
+  CONNECTIVITY
 }
