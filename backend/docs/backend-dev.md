@@ -7,8 +7,8 @@
 **Database:** Neon PostgreSQL
 **Authentication:** JWT and bcryptjs
 **Validation:** Zod
-**Current Progress:** Phase 11 Complete — Amenities
-**Next Milestone:** Phase 12 — Favorites
+**Current Progress:** Phase 12 Complete — Favorites
+**Next Milestone:** Phase 13 — Inquiries
 
 ---
 
@@ -371,8 +371,8 @@ The backend is being built incrementally. Each phase is implemented, tested, and
 | Phase 9 | Listings | Complete |
 | Phase 10 | Media Management | Complete |
 | Phase 11 | Amenities | Complete |
-| Phase 12 | Favorites | Planned |
-| Phase 13 | Inquiries | Planned |
+| Phase 12 | Favorites | Complete |
+| Phase 13 | Inquiries | Next |
 | Phase 14 | Verification | Planned |
 | Phase 15 | Reports and Moderation | Planned |
 | Phase 16 | Administration | Planned |
@@ -913,6 +913,10 @@ The backend now contains completed endpoints across Authentication, Property, Li
 | GET | `/api/v1/media/:mediaId` | Public | Complete |
 | POST | `/api/v1/media` | Required | Complete |
 | PATCH | `/api/v1/properties/:propertyId/availability` | Required | Complete |
+| GET | `/api/v1/favorites` | Required | Complete |
+| GET | `/api/v1/favorites/:listingId` | Required | Complete |
+| POST | `/api/v1/favorites/:listingId` | Required | Complete |
+| DELETE | `/api/v1/favorites/:listingId` | Required | Complete |
 
 Additional Property and Listing endpoints are documented in their respective phase sections.
 
@@ -1590,7 +1594,7 @@ This provides a secure foundation for the upcoming Property module.
 
 ## Project Status
 
-**Current Phase:** Phase 11 Complete – Amenities
+**Current Phase:** Phase 12 Complete – Favorites
 
 **Project Status:** 🟢 Stable
 
@@ -2541,20 +2545,20 @@ All Listing tests passed successfully.
 
 # Documentation Milestone
 
-**Status:** Complete for Phase 10
+**Status:** Complete through Phase 12
 
-Phase 10 — Media Management has been implemented and tested. This document has now been synchronized with the actual Media implementation before beginning the next major domain.
+Phase 12 — Favorites has been implemented and tested. This document has now been synchronized with the actual Favorites implementation before beginning the next major domain.
 
 ## Documentation Order
 
 ```text
-Phase 10 Complete
+Phase 12 Complete
       ↓
-Update backend-development.md
+Update backend-dev.md
       ↓
 Review architecture against actual implementation
       ↓
-Phase 11 — Amenities
+Phase 13 — Inquiries
 ```
 
 The architecture and backend documentation should continue to describe the real implementation as it evolves.
@@ -2574,8 +2578,10 @@ Phase 7  ✅ Role-Based Authorization
 Phase 8  ✅ Property Foundation
 Phase 9  ✅ Listing Module
 Phase 10 ✅ Media Management
+Phase 11 ✅ Amenities
+Phase 12 ✅ Favorites
 
-Phase 11 ⏭️ Amenities
+Phase 13 ⏭️ Inquiries
 ```
 
 ## Current Project Structure
@@ -2586,9 +2592,9 @@ Authorization        ✅
 Property Foundation  ✅
 Listing Module       ✅
 Media Module         ✅
-Amenities Module     ⏭️
-Favorites Module     ⏳
-Inquiry Module       ⏳
+Amenities Module     ✅
+Favorites Module     ✅
+Inquiry Module       ⏭️
 Verification Module  ⏳
 Reports Module       ⏳
 Administration       ⏳
@@ -3683,17 +3689,755 @@ Duplicate-assignment protection
 
 ---
 
+# Phase 12 — Favorites
+
+**Status:** Complete 🔥
+
+## Goal
+
+Build a user-facing Favorites system that allows authenticated users to save active listings, view their saved listings, check favorite status, and remove favorites.
+
+The Favorites domain is intentionally **Listing-based** rather than Property-based because users save a specific market-facing listing.
+
+---
+
+## Phase 12.1 — Architecture and Data Model
+
+### Relationship
+
+Favorites represent a many-to-many relationship between Users and Listings:
+
+```text
+User
+ │
+ │ 1
+ │
+ │ N
+Favorite
+ │
+ │ N
+ │
+ │ 1
+Listing
+```
+
+A user can favorite many listings, and a listing can be favorited by many users.
+
+### Favorite Model
+
+The current Prisma model contains:
+
+```text
+userId
+listingId
+createdAt
+```
+
+The relationship is represented through:
+
+```prisma
+@@id([userId, listingId])
+```
+
+This composite primary key prevents the same user from favoriting the same listing more than once.
+
+The model also contains relations to:
+
+```text
+User
+Listing
+```
+
+with cascade deletion at the database relationship level.
+
+### Why the Favorite Targets Listing
+
+A Property represents the underlying real-world property, while a Listing represents a market-facing offer.
+
+Favorites therefore attach to:
+
+```text
+User
+ ↓
+Favorite
+ ↓
+Listing
+ ↓
+Property
+```
+
+This keeps the saved item aligned with what the user actually discovers in the marketplace.
+
+---
+
+## Phase 12.2 — Database Migration
+
+The Favorite model was added through a Prisma migration.
+
+Development workflow:
+
+```text
+Prisma schema
+      ↓
+Migration
+      ↓
+Neon PostgreSQL
+      ↓
+Prisma Client
+```
+
+The migration creates the Favorite table with:
+
+```text
+PRIMARY KEY (userId, listingId)
+```
+
+and an index on:
+
+```text
+listingId
+```
+
+The `listingId` index supports efficient listing-level favorite lookups and future favorite-count queries.
+
+### Migration Connectivity Issue
+
+During the initial migration attempt, Prisma returned:
+
+```text
+P1001: Can't reach database server
+```
+
+The database was then verified successfully using:
+
+```powershell
+npx prisma db pull
+```
+
+which successfully introspected the existing database.
+
+The local `Favorite` model was restored after introspection and the migration was subsequently applied successfully.
+
+No database reset was performed.
+
+---
+
+## Phase 12.3 — Favorite Validation
+
+Favorite requests use Zod validation.
+
+### Listing-Based Operations
+
+The following operations validate:
+
+```text
+listingId
+```
+
+as a UUID:
+
+```http
+POST   /api/v1/favorites/:listingId
+GET    /api/v1/favorites/:listingId
+DELETE /api/v1/favorites/:listingId
+```
+
+Invalid UUID values are rejected before reaching the service layer.
+
+### Favorite List
+
+The user's favorite list supports:
+
+```text
+page
+limit
+```
+
+Pagination values are coerced from Express query strings into numbers.
+
+The limit is constrained to a maximum of:
+
+```text
+100
+```
+
+This prevents unbounded list requests.
+
+---
+
+## Phase 12.4 — Favorite Service
+
+The Favorite service contains the business rules for creating, removing, checking, and retrieving favorites.
+
+### Create Favorite
+
+The creation flow is:
+
+```text
+Authenticated user
+       ↓
+Find listing
+       ↓
+Verify listing is ACTIVE
+       ↓
+Check existing Favorite
+       ↓
+Create Favorite
+```
+
+Only listings with:
+
+```text
+ACTIVE
+```
+
+status can be favorited.
+
+The following listing states cannot be newly favorited:
+
+```text
+DRAFT
+PENDING_REVIEW
+REJECTED
+EXPIRED
+SOLD
+RENTED
+ARCHIVED
+```
+
+### Duplicate Protection
+
+The service checks for an existing Favorite using:
+
+```text
+userId + listingId
+```
+
+A duplicate request returns:
+
+```http
+409 Conflict
+```
+
+The composite primary key provides an additional database-level protection against duplicate records.
+
+### Remove Favorite
+
+Removing a favorite requires both:
+
+```text
+userId
+listingId
+```
+
+This ensures a user can only remove their own favorite.
+
+A missing Favorite returns:
+
+```http
+404 Not Found
+```
+
+### Favorite Status
+
+The status operation returns:
+
+```json
+{
+  "isFavorited": true,
+  "createdAt": "..."
+}
+```
+
+or:
+
+```json
+{
+  "isFavorited": false,
+  "createdAt": null
+}
+```
+
+This is designed to support frontend favorite controls such as saved/unsaved heart buttons.
+
+### My Favorites
+
+The user's favorites are returned in descending creation order.
+
+The response includes pagination information:
+
+```text
+page
+limit
+total
+totalPages
+```
+
+The query retrieves the associated Listing and Property data required to render saved listings.
+
+### No Soft Deletion
+
+Favorites do not use `deletedAt`.
+
+Unlike Media and Amenities, a Favorite represents a lightweight user interaction.
+
+The operations are therefore:
+
+```text
+POST    → INSERT
+DELETE  → DELETE
+```
+
+rather than soft deletion.
+
+---
+
+## Phase 12.5 — Controller and Routes
+
+The Favorites module follows the standard modular architecture:
+
+```text
+src/modules/favorite/
+├── favorite.controller.ts
+├── favorite.routes.ts
+├── favorite.service.ts
+└── favorite.validation.ts
+```
+
+### Authentication
+
+All Favorite routes use:
+
+```text
+authenticate
+```
+
+at the router level.
+
+Therefore anonymous users cannot create, remove, inspect, or retrieve Favorites.
+
+The authenticated user's ID is obtained from:
+
+```text
+req.user.id
+```
+
+The client never supplies the `userId`.
+
+This prevents users from attempting to manipulate another user's Favorite records by changing a request body or URL.
+
+### API Endpoints
+
+| Method | Endpoint | Authentication | Purpose |
+|---|---|---|---|
+| GET | `/api/v1/favorites` | Required | Get the authenticated user's favorites |
+| GET | `/api/v1/favorites/:listingId` | Required | Check favorite status for a listing |
+| POST | `/api/v1/favorites/:listingId` | Required | Favorite an active listing |
+| DELETE | `/api/v1/favorites/:listingId` | Required | Remove the authenticated user's favorite |
+
+### Router Registration
+
+The router is registered under:
+
+```text
+/api/v1/favorites
+```
+
+The complete route flow is:
+
+```text
+Request
+  ↓
+Favorite Router
+  ↓
+authenticate
+  ↓
+validateRequest
+  ↓
+Favorite Controller
+  ↓
+Favorite Service
+  ↓
+Prisma
+```
+
+---
+
+## Phase 12.6 — Authorization and Security
+
+Favorites do not require a role-specific restriction such as:
+
+```text
+authorizeRoles("ADMIN")
+```
+
+Any authenticated user role can use the Favorites feature.
+
+The important authorization boundary is **resource ownership**:
+
+```text
+JWT
+ ↓
+req.user.id
+ ↓
+Favorite.userId
+```
+
+A user can only operate on their own Favorite records.
+
+### Authenticated Roles
+
+The Favorite feature is available to authenticated users regardless of whether their role is:
+
+```text
+USER
+OWNER
+AGENCY
+HOTEL
+ADMIN
+```
+
+The requirement is authentication, not a particular role.
+
+### Listing Eligibility
+
+A listing must be active to receive a new Favorite.
+
+This prevents users from newly saving listings that are no longer available in the marketplace.
+
+Existing Favorite records are not automatically deleted when a listing later becomes inactive.
+
+This preserves the user's saved-list history and leaves the presentation/filtering decision to the Favorites retrieval layer.
+
+---
+
+## Phase 12.7 — Testing
+
+The Favorites module was tested through Postman after implementation.
+
+### Initial Favorites
+
+* [x] Get favorites for authenticated user
+* [x] Empty favorites response
+* [x] Pagination response
+
+### Creation
+
+* [x] Favorite active listing
+* [x] Successful `201 Created` response
+* [x] Favorite record created in database
+
+### Status
+
+* [x] Check favorited listing
+* [x] `isFavorited: true`
+* [x] Check after removal
+* [x] `isFavorited: false`
+
+### Retrieval
+
+* [x] Get authenticated user's favorites
+* [x] Favorite total count
+* [x] Pagination metadata
+* [x] Listing data returned with favorites
+
+### Duplicate Protection
+
+* [x] Duplicate favorite rejected
+* [x] `409 Conflict` returned
+
+### Validation
+
+* [x] Invalid listing UUID rejected
+* [x] `400 Bad Request` returned
+
+### Resource Handling
+
+* [x] Nonexistent listing rejected
+* [x] `404 Not Found` returned
+* [x] Inactive listing rejected
+* [x] `404 Not Found` returned
+
+### Authentication
+
+* [x] Missing access token rejected
+* [x] `401 Unauthorized` returned
+
+### Removal
+
+* [x] Remove existing favorite
+* [x] `200 OK` returned
+* [x] Remove nonexistent favorite
+* [x] `404 Not Found` returned
+
+### Type and Database Checks
+
+* [x] Prisma Client generated
+* [x] TypeScript type checking passed
+* [x] Prisma migration applied
+* [x] Favorite composite primary key verified through successful duplicate protection
+
+All planned Favorites tests passed successfully.
+
+---
+
+## Phase 12.8 — Important Favorites Design Decisions
+
+### 1. Favorites belong to Listings
+
+Favorites target Listings rather than Properties:
+
+```text
+User
+ ↓
+Favorite
+ ↓
+Listing
+ ↓
+Property
+```
+
+This keeps the saved item aligned with the marketplace offer.
+
+### 2. Composite Primary Key
+
+The database uses:
+
+```prisma
+@@id([userId, listingId])
+```
+
+This prevents duplicate favorites at the database level.
+
+### 3. Authentication Rather Than Role Restriction
+
+Favorites are a consumer feature available to all authenticated roles.
+
+### 4. User ID Comes From the JWT
+
+The API never accepts a user ID for Favorite creation or deletion.
+
+The authenticated identity determines the Favorite owner.
+
+### 5. Only Active Listings Can Be Newly Favorited
+
+The service verifies:
+
+```text
+Listing.status = ACTIVE
+```
+
+before creating a Favorite.
+
+### 6. Favorites Are Hard-Deleted
+
+Unfavoriting removes the Favorite record rather than setting a `deletedAt` timestamp.
+
+### 7. Existing Favorites Are Retained When Listings Become Inactive
+
+A listing changing from:
+
+```text
+ACTIVE
+```
+
+to:
+
+```text
+SOLD
+EXPIRED
+RENTED
+ARCHIVED
+```
+
+does not automatically remove existing Favorite records.
+
+This preserves user history.
+
+### 8. Pagination Is Built In
+
+The user's Favorites endpoint supports pagination from the beginning rather than returning an unbounded collection.
+
+---
+
+## Phase 12.9 — Problems Encountered
+
+### Prisma Database Connectivity During Migration
+
+#### Problem
+
+The first migration attempt returned:
+
+```text
+P1001: Can't reach database server
+```
+
+#### Investigation
+
+The database connection was tested using:
+
+```powershell
+npx prisma db pull
+```
+
+The command successfully connected to Neon and introspected the existing models.
+
+#### Resolution
+
+The local Favorite model was restored after introspection and the migration was rerun successfully.
+
+No database reset was performed.
+
+---
+
+### Prisma Type Error in Existing Amenity Service
+
+#### Problem
+
+After generating Prisma Client, TypeScript reported:
+
+```text
+Type '{ name: string; }' is not assignable to type 'AmenityWhereUniqueInput'
+```
+
+The problem occurred because the Amenities implementation had intentionally removed Prisma's:
+
+```prisma
+name @unique
+```
+
+constraint in favor of the PostgreSQL expression index:
+
+```sql
+LOWER("name")
+```
+
+Therefore Prisma could no longer use:
+
+```typescript
+findUnique({
+  where: {
+    name: data.name,
+  },
+})
+```
+
+#### Resolution
+
+The lookup was changed to a case-insensitive `findFirst()` query.
+
+The PostgreSQL functional unique index remains the final database-level uniqueness guarantee.
+
+Type checking subsequently passed.
+
+---
+
+## Phase 12.10 — Result
+
+The Favorites domain is complete.
+
+The backend now supports:
+
+```text
+Authenticated user
+       ↓
+View favorites
+       ↓
+Favorite active listing
+       ↓
+Check favorite status
+       ↓
+Remove favorite
+```
+
+with:
+
+```text
+Authentication
+      ↓
+UUID validation
+      ↓
+Listing eligibility
+      ↓
+Duplicate protection
+      ↓
+User ownership
+      ↓
+Pagination
+      ↓
+Database constraints
+```
+
+The Favorites feature is now ready for frontend integration.
+
+---
+
+# Current Backend Milestone
+
+```text
+Phase 1  ✅ Backend Project Setup
+Phase 2  ✅ Express Configuration
+Phase 3  ✅ API Structure and Error Handling
+Phase 4  ✅ PostgreSQL + Neon + Prisma
+Phase 5  ✅ User Database Foundation
+Phase 6  ✅ Authentication
+Phase 7  ✅ Role-Based Authorization
+Phase 8  ✅ Property Foundation
+Phase 9  ✅ Listing Module
+Phase 10 ✅ Media Management
+Phase 11 ✅ Amenities
+Phase 12 ✅ Favorites
+
+Phase 13 ⏭️ Inquiries
+```
+
+## Current Project Structure
+
+```text
+Authentication       ✅
+Authorization        ✅
+Property Foundation  ✅
+Listing Module       ✅
+Media Module         ✅
+Amenities Module     ✅
+Favorites Module     ✅
+Inquiry Module       ⏭️
+Verification Module  ⏳
+Reports Module       ⏳
+Administration       ⏳
+```
+
+---
+
 # Next Phase
 
-## Phase 12 — Favorites
+## Phase 13 — Inquiries
 
 The next major backend domain is:
 
 ```text
-Favorites
+Inquiries
 ```
 
-The implementation will continue using the same workflow:
+Before implementation, the Inquiry domain should first be designed around:
+
+```text
+User
+Property
+Listing
+Inquiry
+```
+
+including:
+
+* Who can create an inquiry
+* Who receives an inquiry
+* Inquiry status transitions
+* Ownership rules
+* Whether inquiries belong to Listings or Properties
+* Validation and authorization requirements
+
+The implementation will continue using the established workflow:
 
 ```text
 Schema

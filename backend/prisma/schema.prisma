@@ -8,20 +8,22 @@ datasource db {
 }
 
 model User {
-  id              String     @id @default(uuid())
-  email           String     @unique
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  id              String    @id @default(uuid())
+  email           String    @unique
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
   firstName       String
-  isEmailVerified Boolean    @default(false)
-  isPhoneVerified Boolean    @default(false)
+  isEmailVerified Boolean   @default(false)
+  isPhoneVerified Boolean   @default(false)
   lastName        String
   passwordHash    String
-  phone           String     @unique
-  role            UserRole   @default(USER)
-  status          UserStatus @default(ACTIVE)
-  properties      Property[] @relation("PropertyOwner")
+  phone           String    @unique
+
+  role       UserRole   @default(USER)
+  status     UserStatus @default(ACTIVE)
+  properties Property[] @relation("PropertyOwner")
+  favorites  Favorite[]
 
   @@index([role])
   @@index([status])
@@ -122,7 +124,9 @@ model Listing {
   createdAt               DateTime      @default(now())
   updatedAt               DateTime      @updatedAt
   deletedAt               DateTime?
-  property                Property      @relation(fields: [propertyId], references: [id])
+
+  property  Property   @relation(fields: [propertyId], references: [id])
+  favorites Favorite[]
 
   @@index([propertyId])
   @@index([status, listingType])
@@ -177,6 +181,18 @@ model PropertyAmenity {
 
   @@id([propertyId, amenityId])
   @@index([amenityId])
+}
+
+model Favorite {
+  userId    String
+  listingId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@id([userId, listingId])
+  @@index([listingId])
 }
 
 enum UserRole {

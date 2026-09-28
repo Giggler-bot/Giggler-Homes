@@ -95,9 +95,10 @@ export async function updateAmenity(
   }
 
   if (data.name && data.name !== amenity.name){
-    const existingAmenity = await prisma.amenity.findUnique({
+    const existingAmenity = await prisma.amenity.findFirst({
         where: {
             name: data.name,
+            mode: "insensitive",
         },
     });
 
