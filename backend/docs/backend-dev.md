@@ -372,7 +372,6 @@ The backend is being built incrementally. Each phase is implemented, tested, and
 | Phase 10 | Media Management | Complete |
 | Phase 11 | Amenities | Complete |
 | Phase 12 | Favorites | Planned |
-| Phase 12 | Favorites | Planned |
 | Phase 13 | Inquiries | Planned |
 | Phase 14 | Verification | Planned |
 | Phase 15 | Reports and Moderation | Planned |
