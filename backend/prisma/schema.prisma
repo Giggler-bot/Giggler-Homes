@@ -20,10 +20,12 @@ model User {
   passwordHash    String
   phone           String    @unique
 
-  role       UserRole   @default(USER)
-  status     UserStatus @default(ACTIVE)
-  properties Property[] @relation("PropertyOwner")
-  favorites  Favorite[]
+  role              UserRole   @default(USER)
+  status            UserStatus @default(ACTIVE)
+  properties        Property[] @relation("PropertyOwner")
+  favorites         Favorite[]
+  sentInquiries     Inquiry[]  @relation("InquirySender")
+  receivedInquiries Inquiry[]  @relation("InquiryOwner")
 
   @@index([role])
   @@index([status])
@@ -127,6 +129,7 @@ model Listing {
 
   property  Property   @relation(fields: [propertyId], references: [id])
   favorites Favorite[]
+  inquires  Inquiry[]
 
   @@index([propertyId])
   @@index([status, listingType])
@@ -193,6 +196,29 @@ model Favorite {
 
   @@id([userId, listingId])
   @@index([listingId])
+}
+
+model Inquiry {
+  id          String        @id @default(uuid())
+  listingId   String
+  senderId    String
+  ownerId     String
+  message     String
+  status      InquiryStatus @default(OPEN)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  respondedAt DateTime?
+  closedAt    DateTime?
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  sender  User    @relation("InquirySender", fields: [senderId], references: [id], onDelete: Cascade)
+  owner   User    @relation("InquiryOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+  @@index([senderId])
+  @@index([ownerId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 enum UserRole {
@@ -266,4 +292,10 @@ enum AmenityCategory {
   OUTDOOR
   PARKING
   CONNECTIVITY
+}
+
+enum InquiryStatus {
+  OPEN
+  RESPONDED
+  CLOSED
 }
