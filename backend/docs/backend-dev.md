@@ -7,8 +7,8 @@
 **Database:** Neon PostgreSQL
 **Authentication:** JWT and bcryptjs
 **Validation:** Zod
-**Current Progress:** Phase 12 Complete — Favorites
-**Next Milestone:** Phase 13 — Inquiries
+**Current Progress:** Phase 13 Complete — Inquiries
+**Next Milestone:** Phase 14 — Verification
 
 ---
 
@@ -372,8 +372,8 @@ The backend is being built incrementally. Each phase is implemented, tested, and
 | Phase 10 | Media Management | Complete |
 | Phase 11 | Amenities | Complete |
 | Phase 12 | Favorites | Complete |
-| Phase 13 | Inquiries | Next |
-| Phase 14 | Verification | Planned |
+| Phase 13 | Inquiries | Complete |
+| Phase 14 | Verification | Next |
 | Phase 15 | Reports and Moderation | Planned |
 | Phase 16 | Administration | Planned |
 | Phase 17 | Testing + API Documentation | Planned |
@@ -917,6 +917,12 @@ The backend now contains completed endpoints across Authentication, Property, Li
 | GET | `/api/v1/favorites/:listingId` | Required | Complete |
 | POST | `/api/v1/favorites/:listingId` | Required | Complete |
 | DELETE | `/api/v1/favorites/:listingId` | Required | Complete |
+| POST | `/api/v1/inquiries/listings/:listingId` | Required | Complete |
+| GET | `/api/v1/inquiries/sent` | Required | Complete |
+| GET | `/api/v1/inquiries/received` | Required | Complete |
+| GET | `/api/v1/inquiries/:inquiryId` | Required | Complete |
+| PATCH | `/api/v1/inquiries/:inquiryId/respond` | Required | Complete |
+| PATCH | `/api/v1/inquiries/:inquiryId/close` | Required | Complete |
 
 Additional Property and Listing endpoints are documented in their respective phase sections.
 
@@ -4387,8 +4393,9 @@ Phase 9  ✅ Listing Module
 Phase 10 ✅ Media Management
 Phase 11 ✅ Amenities
 Phase 12 ✅ Favorites
+Phase 13 ✅ Inquiries
 
-Phase 13 ⏭️ Inquiries
+Phase 14 ⏭️ Verification
 ```
 
 ## Current Project Structure
@@ -4401,8 +4408,984 @@ Listing Module       ✅
 Media Module         ✅
 Amenities Module     ✅
 Favorites Module     ✅
-Inquiry Module       ⏭️
-Verification Module  ⏳
+Inquiry Module       ✅
+Verification Module  ⏭️
+Reports Module       ⏳
+Administration       ⏳
+```
+
+---
+
+# Phase 13 — Inquiries
+
+**Status:** Complete 🔥
+
+## Goal
+
+Build the Inquiry domain so authenticated users can contact the owner of an active listing while enforcing ownership, duplicate-open-inquiry, lifecycle, and authorization rules.
+
+The Inquiry domain is intentionally **Listing-based** rather than Property-based because the inquiry is about a specific market-facing listing.
+
+---
+
+## Phase 13.1 — Business Rules
+
+| Area | Rule |
+|---|---|
+| Sender | Any authenticated user |
+| Recipient | Denormalized `ownerId`, captured once at creation |
+| Self-inquiry | Blocked |
+| Listing eligibility | Listing must be `ACTIVE` |
+| Duplicate rule | Only one `OPEN` inquiry per `(senderId, listingId)` |
+| After closure | Sender may create a new inquiry after the previous inquiry is `CLOSED` |
+| Message | One initial message; no threaded replies in V1 |
+| Status flow | `OPEN → RESPONDED → CLOSED` |
+| Backward transitions | Not allowed |
+| Sender closing | Sender may transition an inquiry to `CLOSED` |
+| Owner closing | Owner may transition an inquiry to `CLOSED` |
+| Admin | Full unrestricted access |
+| Recipient storage | `ownerId` is captured at creation |
+| Ownership source | `listing.property.ownerId` at creation |
+
+### Recipient Snapshot
+
+The Inquiry stores:
+
+```text
+ownerId
+```
+
+even though the current property owner can be reached through:
+
+```text
+Inquiry
+   ↓
+Listing
+   ↓
+Property
+   ↓
+User
+```
+
+This is intentional denormalization. The stored `ownerId` is a historical snapshot of the recipient when the inquiry was created.
+
+If property ownership changes later, an existing inquiry remains associated with the original recipient.
+
+---
+
+## Phase 13.2 — Data Model
+
+### Inquiry Status
+
+```prisma
+enum InquiryStatus {
+  OPEN
+  RESPONDED
+  CLOSED
+}
+```
+
+Lifecycle:
+
+```text
+OPEN
+  ↓
+RESPONDED
+  ↓
+CLOSED
+```
+
+Backward transitions are not supported.
+
+### Inquiry Model
+
+The current model contains:
+
+```text
+id
+listingId
+senderId
+ownerId
+message
+status
+createdAt
+updatedAt
+respondedAt
+closedAt
+```
+
+Relations:
+
+```text
+User
+ ├── sentInquiries
+ │       ↓
+ │    Inquiry
+ │       ↓
+ │    Listing
+ │       ↓
+ │    Property
+ │
+ └── receivedInquiries
+         ↓
+      Inquiry
+```
+
+The User relations are explicitly named:
+
+```prisma
+sentInquiries     Inquiry[] @relation("InquirySender")
+receivedInquiries Inquiry[] @relation("InquiryOwner")
+```
+
+The Listing model also exposes:
+
+```prisma
+inquiries Inquiry[]
+```
+
+Indexes are defined on:
+
+```text
+listingId
+senderId
+ownerId
+status
+createdAt
+```
+
+---
+
+## Phase 13.3 — Conditional Database Uniqueness
+
+The business rule requires one `OPEN` inquiry per sender/listing pair while allowing multiple closed historical inquiries.
+
+A normal Prisma `@@unique([senderId, listingId])` would be too restrictive.
+
+PostgreSQL therefore enforces the rule with a partial unique index:
+
+```sql
+CREATE UNIQUE INDEX "Inquiry_open_sender_listing_key"
+ON "Inquiry"("senderId", "listingId")
+WHERE "status" = 'OPEN';
+```
+
+Expected behavior:
+
+```text
+User A → Listing 1 → OPEN       ✅
+User A → Listing 1 → OPEN       ❌ 409
+
+User A → Listing 1 → CLOSED     ✅
+User A → Listing 1 → CLOSED     ✅
+
+User A → Listing 1 → CLOSED
+User A → Listing 1 → OPEN       ✅
+```
+
+The service checks for an existing open inquiry first, while the database constraint provides the final integrity guarantee.
+
+### Migration Incident and Resolution
+
+The initial Inquiry model migration was:
+
+```text
+20260929104926_add_inquiry_model
+```
+
+The partial unique index was initially added to that already-applied migration. Prisma detected the modified migration and reported:
+
+```text
+The migration 20260929104926_add_inquiry_model
+was modified after it was applied.
+```
+
+The original applied migration was restored.
+
+No:
+
+```text
+prisma migrate reset
+```
+
+was performed, and `_prisma_migrations` was not manually modified.
+
+After restoration:
+
+```text
+17 migrations found in prisma/migrations
+Database schema is up to date!
+```
+
+Because Prisma did not represent the PostgreSQL-specific partial index as a normal schema change, a separate migration was created with:
+
+```powershell
+npx prisma migrate dev --create-only --name add_inquiry_open_unique_index
+```
+
+The custom SQL was placed in that new migration and applied successfully.
+
+### Migration Safety Lesson
+
+> Once a migration has been applied, freeze that migration file. Database-specific SQL changes should be introduced through a new migration.
+
+---
+
+## Phase 13.4 — Validation
+
+Inquiry requests use Zod validation.
+
+### Create Inquiry
+
+The create request validates:
+
+```text
+listingId
+message
+```
+
+Rules:
+
+```text
+listingId → UUID
+message   → trimmed string
+message   → minimum 1 character
+message   → maximum 2000 characters
+```
+
+The message schema is:
+
+```ts
+z.string()
+  .trim()
+  .min(1, "Message is required")
+  .max(2000, "Message must not exceed 2000 characters")
+```
+
+### Inquiry ID
+
+Inquiry-specific operations validate `inquiryId` as a UUID.
+
+### Inquiry Lists
+
+The sent and received endpoints support:
+
+```text
+page
+limit
+status
+```
+
+with:
+
+```text
+page   → integer >= 1
+limit  → integer >= 1
+limit  → maximum 100
+status → OPEN | RESPONDED | CLOSED
+```
+
+Query-string pagination values are coerced into numbers before reaching the service.
+
+---
+
+## Phase 13.5 — Inquiry Service
+
+### Create Inquiry Flow
+
+```text
+Authenticated user
+       ↓
+Find Listing
+       ↓
+Verify Listing exists
+       ↓
+Verify Listing.status = ACTIVE
+       ↓
+Read listing.property.ownerId
+       ↓
+Block self-inquiry
+       ↓
+Check existing OPEN inquiry
+       ↓
+Create Inquiry
+       ↓
+Return Inquiry
+```
+
+The client does not supply `ownerId`.
+
+### Active Listing Requirement
+
+Only `ACTIVE` listings can receive new inquiries.
+
+Inactive listings return:
+
+```http
+404 Not Found
+```
+
+### Self-Inquiry Protection
+
+If:
+
+```text
+senderId === listing.property.ownerId
+```
+
+the request returns:
+
+```http
+403 Forbidden
+```
+
+### Duplicate OPEN Protection
+
+The service checks:
+
+```text
+listingId
+senderId
+status = OPEN
+```
+
+An existing open inquiry returns:
+
+```http
+409 Conflict
+```
+
+The service also catches Prisma `P2002` and converts it into the same business response, protecting the rule under concurrent creation attempts.
+
+---
+
+## Phase 13.6 — Retrieval and Lifecycle Management
+
+### Sent Inquiries
+
+```http
+GET /api/v1/inquiries/sent
+```
+
+Filters by:
+
+```text
+senderId = req.user.id
+```
+
+and supports pagination and optional status filtering.
+
+Results are ordered by:
+
+```text
+createdAt DESC
+```
+
+### Received Inquiries
+
+```http
+GET /api/v1/inquiries/received
+```
+
+Filters by:
+
+```text
+ownerId = req.user.id
+```
+
+and supports pagination and optional status filtering.
+
+### Individual Inquiry
+
+```http
+GET /api/v1/inquiries/:inquiryId
+```
+
+Allowed viewers:
+
+```text
+sender
+owner
+ADMIN
+```
+
+An unrelated authenticated user receives `403 Forbidden`.
+
+### Respond
+
+```http
+PATCH /api/v1/inquiries/:inquiryId/respond
+```
+
+Allowed roles/relationship:
+
+```text
+owner
+ADMIN
+```
+
+Valid transition:
+
+```text
+OPEN → RESPONDED
+```
+
+The operation sets:
+
+```text
+respondedAt
+```
+
+A sender cannot respond, and an already responded or closed inquiry cannot be responded to again.
+
+### Close
+
+```http
+PATCH /api/v1/inquiries/:inquiryId/close
+```
+
+Allowed:
+
+```text
+sender
+owner
+ADMIN
+```
+
+Valid transitions:
+
+```text
+OPEN → CLOSED
+RESPONDED → CLOSED
+```
+
+The operation sets:
+
+```text
+closedAt
+```
+
+A closed inquiry cannot be closed again.
+
+---
+
+## Phase 13.7 — Controller Layer
+
+The module contains:
+
+```text
+createInquiryController
+getSentInquiriesController
+getReceivedInquiriesController
+getInquiryByIdController
+respondToInquiryController
+closeInquiryController
+```
+
+Controllers remain thin:
+
+```text
+Read validated request data
+        ↓
+Read req.user
+        ↓
+Call service
+        ↓
+Return HTTP response
+```
+
+Business rules remain in the service layer.
+
+The authenticated identity comes from:
+
+```text
+req.user.id
+```
+
+and administrative access is determined from the authenticated user's role.
+
+---
+
+## Phase 13.8 — Routes
+
+All Inquiry routes use authentication at the router level.
+
+Base path:
+
+```text
+/api/v1/inquiries
+```
+
+### API Endpoints
+
+| Method | Endpoint | Authentication | Purpose |
+|---|---|---|---|
+| POST | `/api/v1/inquiries/listings/:listingId` | Required | Create inquiry for an active listing |
+| GET | `/api/v1/inquiries/sent` | Required | Get inquiries sent by the authenticated user |
+| GET | `/api/v1/inquiries/received` | Required | Get inquiries received by the authenticated user |
+| GET | `/api/v1/inquiries/:inquiryId` | Required | Get one inquiry |
+| PATCH | `/api/v1/inquiries/:inquiryId/respond` | Required | Owner/Admin responds |
+| PATCH | `/api/v1/inquiries/:inquiryId/close` | Required | Sender/Owner/Admin closes |
+
+Static routes:
+
+```text
+/sent
+/received
+```
+
+are defined before:
+
+```text
+/:inquiryId
+```
+
+so the generic parameter route does not capture the static route names.
+
+### Route Flow
+
+```text
+Request
+  ↓
+Inquiry Router
+  ↓
+authenticate
+  ↓
+validateRequest
+  ↓
+Inquiry Controller
+  ↓
+Inquiry Service
+  ↓
+Prisma
+```
+
+Resource-level authorization is enforced in the service because it depends on the relationship between the authenticated user and the inquiry.
+
+---
+
+## Phase 13.9 — Authentication and Authorization
+
+All Inquiry operations require authentication.
+
+Anonymous requests receive:
+
+```http
+401 Unauthorized
+```
+
+### Create
+
+Any authenticated user may create an inquiry if:
+
+```text
+Listing exists
+Listing is ACTIVE
+Sender is not owner
+No OPEN inquiry already exists
+```
+
+### Read
+
+An individual inquiry is accessible to:
+
+```text
+sender
+owner
+ADMIN
+```
+
+### Respond
+
+Only:
+
+```text
+owner
+ADMIN
+```
+
+can perform:
+
+```text
+OPEN → RESPONDED
+```
+
+### Close
+
+The following can close:
+
+```text
+sender
+owner
+ADMIN
+```
+
+### Admin
+
+Administrators have unrestricted Inquiry access.
+
+---
+
+## Phase 13.10 — Testing
+
+The Inquiry module was tested through normal, failure, authorization, lifecycle, and database-integrity scenarios.
+
+### Creation
+
+- [x] Valid inquiry creation
+- [x] `201 Created`
+- [x] Returned inquiry verified
+- [x] Listing association verified
+- [x] Sender association verified
+- [x] Owner association verified
+- [x] Message stored correctly
+- [x] Initial status is `OPEN`
+
+### Duplicate and Listing Rules
+
+- [x] Duplicate `OPEN` inquiry rejected with `409`
+- [x] Partial unique index verified
+- [x] Multiple `CLOSED` inquiries allowed
+- [x] New inquiry allowed after previous inquiry is `CLOSED`
+- [x] Inactive listing rejected
+- [x] Nonexistent listing rejected
+- [x] Invalid listing UUID rejected
+- [x] Self-inquiry rejected
+
+### Retrieval
+
+- [x] Sent inquiries
+- [x] Received inquiries
+- [x] Pagination
+- [x] Status filtering
+- [x] Individual inquiry as sender
+- [x] Individual inquiry as owner
+- [x] Admin retrieval
+- [x] Unrelated-user access rejected
+- [x] Nonexistent inquiry returns `404`
+- [x] Invalid inquiry UUID returns `400`
+
+### Lifecycle
+
+- [x] Owner responds
+- [x] `RESPONDED` verified
+- [x] `respondedAt` verified
+- [x] Sender cannot respond
+- [x] Owner cannot respond twice
+- [x] Sender closes
+- [x] `CLOSED` verified
+- [x] `closedAt` verified
+- [x] Owner closes
+- [x] Admin responds
+- [x] Admin closes
+- [x] Responding to `CLOSED` rejected
+- [x] Closing already `CLOSED` rejected
+- [x] Invalid lifecycle transitions rejected
+
+### Validation
+
+- [x] Empty message rejected
+- [x] Message over 2000 characters rejected
+- [x] Invalid status rejected
+- [x] Invalid page rejected
+- [x] Invalid limit rejected
+- [x] Invalid UUID rejected
+
+### Authentication and Authorization
+
+- [x] Unauthenticated create rejected
+- [x] Unauthenticated retrieval rejected
+- [x] Unauthenticated lifecycle operation rejected
+- [x] Unrelated user cannot respond
+- [x] Unrelated user cannot close
+- [x] Sender cannot respond
+- [x] Owner can respond
+- [x] Sender can close
+- [x] Owner can close
+- [x] Admin unrestricted access
+
+### Data Integrity
+
+- [x] `ownerId` snapshot verified
+- [x] `createdAt` verified
+- [x] `updatedAt` verified
+- [x] `respondedAt` verified
+- [x] `closedAt` verified
+- [x] Partial unique index verified
+- [x] Multiple closed inquiries verified
+
+### Development Checks
+
+- [x] Prisma Client generated
+- [x] `npm run type-check`
+- [x] `npx prisma validate`
+- [x] `npx prisma migrate status`
+- [x] Database schema synchronized
+
+**All Phase 13 tests passed successfully.**
+
+---
+
+## Phase 13.11 — Problems Encountered
+
+### Incorrect Prisma Model Used During Create
+
+The initial create service attempted to query the Inquiry model when it needed to find the Listing.
+
+The lookup was corrected to:
+
+```ts
+const listing = await prisma.listing.findUnique({
+  where: { id: listingId },
+  include: {
+    property: {
+      select: { ownerId: true },
+    },
+  },
+});
+```
+
+The correct flow is:
+
+```text
+listingId
+   ↓
+Listing
+   ↓
+Property.ownerId
+   ↓
+Inquiry
+```
+
+### Incorrect User Field Names
+
+The first returned relation selection used a `name` field.
+
+The actual User model uses:
+
+```text
+firstName
+lastName
+```
+
+The service was corrected to select:
+
+```text
+id
+firstName
+lastName
+email
+```
+
+The creation test and type checking then passed.
+
+### Applied Migration Modified
+
+The partial unique index was initially added to an already-applied migration.
+
+Prisma detected the checksum mismatch.
+
+The original migration was restored and the partial unique index was moved into its own new migration.
+
+No database reset was performed.
+
+---
+
+## Phase 13.12 — Important Design Decisions
+
+### 1. Inquiries Belong to Listings
+
+The Inquiry targets a specific Listing rather than a Property.
+
+```text
+Inquiry
+   ↓
+Listing
+   ↓
+Property
+```
+
+This keeps the inquiry tied to the marketplace offer the user actually viewed.
+
+### 2. Recipient Is Snapshotted
+
+`ownerId` is captured at creation.
+
+This preserves the original recipient if property ownership later changes.
+
+### 3. One Initial Message in V1
+
+The Inquiry has one initial:
+
+```text
+message
+```
+
+field.
+
+V1 does not implement threaded messages. A future messaging system can be introduced independently.
+
+### 4. Explicit Lifecycle Operations
+
+There is no generic arbitrary-status endpoint.
+
+Instead:
+
+```text
+/respond
+/close
+```
+
+represent the supported business operations.
+
+### 5. Database-Enforced OPEN Uniqueness
+
+The service performs an application-level check, while PostgreSQL enforces:
+
+```sql
+WHERE "status" = 'OPEN'
+```
+
+This protects the invariant under concurrent requests.
+
+### 6. Different Sender and Owner Capabilities
+
+```text
+Sender
+  └── can close
+
+Owner
+  ├── can respond
+  └── can close
+
+Admin
+  └── unrestricted
+```
+
+### 7. Closed Inquiries Are Retained
+
+Closed inquiries remain in the database for historical purposes.
+
+A later inquiry can be created after the previous one is closed.
+
+### 8. Ownership Is Not Reassigned Historically
+
+Existing `ownerId` values are not rewritten when property ownership changes.
+
+---
+
+## Phase 13.13 — Inquiry Module Structure
+
+```text
+src/modules/inquiry/
+├── inquiry.controller.ts
+├── inquiry.routes.ts
+├── inquiry.service.ts
+└── inquiry.validation.ts
+```
+
+The Prisma schema contains the Inquiry model and the required named User and Listing relations.
+
+---
+
+## Phase 13.14 — Phase Result
+
+The Inquiry domain is complete.
+
+The backend now supports:
+
+```text
+Authenticated user
+       ↓
+Select active listing
+       ↓
+Create inquiry
+       ↓
+Listing owner receives inquiry
+       ↓
+Owner responds
+       ↓
+Sender / Owner / Admin can close
+```
+
+with:
+
+```text
+Authentication
+      ↓
+UUID validation
+      ↓
+Active-listing validation
+      ↓
+Self-inquiry protection
+      ↓
+OPEN inquiry uniqueness
+      ↓
+Sender/Owner authorization
+      ↓
+Explicit lifecycle transitions
+      ↓
+Timestamp tracking
+      ↓
+Database integrity
+```
+
+The Inquiry feature is ready for frontend integration.
+
+---
+
+# Documentation Milestone
+
+**Status:** Complete through Phase 13
+
+Phase 13 — Inquiries has been implemented, fully tested, and documented. The backend documentation is now synchronized with the actual Inquiry implementation before beginning the next major domain.
+
+## Documentation Order
+
+```text
+Phase 13 Complete
+      ↓
+Update backend-dev.md
+      ↓
+Review architecture against actual implementation
+      ↓
+Phase 14 — Verification
+```
+
+---
+
+# Current Progress Summary
+
+```text
+Phase 1  ✅ Backend Project Setup
+Phase 2  ✅ Express Configuration
+Phase 3  ✅ API Structure and Error Handling
+Phase 4  ✅ PostgreSQL + Neon + Prisma
+Phase 5  ✅ User Database Foundation
+Phase 6  ✅ Authentication
+Phase 7  ✅ Role-Based Authorization
+Phase 8  ✅ Property Foundation
+Phase 9  ✅ Listing Module
+Phase 10 ✅ Media Management
+Phase 11 ✅ Amenities
+Phase 12 ✅ Favorites
+Phase 13 ✅ Inquiries
+
+Phase 14 ⏭️ Verification
+```
+
+## Current Project Structure
+
+```text
+Authentication       ✅
+Authorization        ✅
+Property Foundation  ✅
+Listing Module       ✅
+Media Module         ✅
+Amenities Module     ✅
+Favorites Module     ✅
+Inquiry Module       ✅
+Verification Module  ⏭️
 Reports Module       ⏳
 Administration       ⏳
 ```
@@ -4411,31 +5394,34 @@ Administration       ⏳
 
 # Next Phase
 
-## Phase 13 — Inquiries
+## Phase 14 — Verification
 
 The next major backend domain is:
 
 ```text
-Inquiries
+Verification
 ```
 
-Before implementation, the Inquiry domain should first be designed around:
+Before implementation, the Verification domain should first be designed around:
 
 ```text
 User
 Property
 Listing
-Inquiry
+Verification
 ```
 
 including:
 
-* Who can create an inquiry
-* Who receives an inquiry
-* Inquiry status transitions
-* Ownership rules
-* Whether inquiries belong to Listings or Properties
-* Validation and authorization requirements
+* What can be verified
+* Who can request verification
+* Who can approve or reject verification
+* Verification status transitions
+* Required evidence/documents
+* Ownership and authorization rules
+* Whether verification attaches to Users, Properties, Listings, or more than one domain
+* Validation and security requirements
+* Whether verification history must be retained
 
 The implementation will continue using the established workflow:
 

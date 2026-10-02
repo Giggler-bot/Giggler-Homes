@@ -18,6 +18,7 @@ import listingRouter from "./modules/listings/listing.routes.js";
 import mediaRouter from "./modules/media/media.routes.js";
 import amenityRouter from "./modules/amenity/amenity.routes.js";
 import favoriteRouter from "./modules/favorites/favorite.routes.js";
+import inquiryRouter from "./modules/inquries/inquiry.routes.js";
 
 const app = express();
 
@@ -71,6 +72,8 @@ app.use('/api/v1/media', mediaRouter);
 app.use('/api/v1/amenities', amenityRouter);
 
 app.use('/api/v1/favorites', favoriteRouter);
+
+app.use('/api/v1/inquiries', inquiryRouter)
 
 
 // Handles routes that are not found
