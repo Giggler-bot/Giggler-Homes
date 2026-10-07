@@ -27,37 +27,46 @@ model User {
   sentInquiries     Inquiry[]  @relation("InquirySender")
   receivedInquiries Inquiry[]  @relation("InquiryOwner")
 
+  userVerification     userVerification?
+  businessVerification BusinessVerification?
+
+  submittedOwnershipVerifications OwnershipVerification[] @relation("OwnershipVerificationSubmitter")
+  reviewedVerifications           userVerification[]      @relation("UserVerificationReviewer")
+  reviewedOwnershipVerifications  OwnershipVerification[] @relation("OwnershipVerificationReviewer")
+  reviewedBusinessVerifications   BusinessVerification[]  @relation("BusinessVerificationReviewer")
+
   @@index([role])
   @@index([status])
   @@index([deletedAt])
 }
 
 model Property {
-  id             String            @id @default(uuid())
-  ownerId        String
-  title          String
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  bathrooms      Int?
-  bedrooms       Int?
-  deletedAt      DateTime?
-  description    String
-  isAvailable    Boolean           @default(true)
-  isFeatured     Boolean           @default(false)
-  isFurnished    Boolean           @default(false)
-  locationId     String
-  parkingSpaces  Int?
-  propertyTypeId String
-  slug           String            @unique
-  squareMeters   Float?
-  toilets        Int?
-  yearBuilt      Int?
-  listing        Listing[]
-  medias         Media[]
-  location       Location          @relation(fields: [locationId], references: [id])
-  owner          User              @relation("PropertyOwner", fields: [ownerId], references: [id])
-  propertyType   PropertyType      @relation(fields: [propertyTypeId], references: [id])
-  amenity        PropertyAmenity[]
+  id                    String                 @id @default(uuid())
+  ownerId               String
+  title                 String
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  bathrooms             Int?
+  bedrooms              Int?
+  deletedAt             DateTime?
+  description           String
+  isAvailable           Boolean                @default(true)
+  isFeatured            Boolean                @default(false)
+  isFurnished           Boolean                @default(false)
+  locationId            String
+  parkingSpaces         Int?
+  propertyTypeId        String
+  slug                  String                 @unique
+  squareMeters          Float?
+  toilets               Int?
+  yearBuilt             Int?
+  listing               Listing[]
+  medias                Media[]
+  location              Location               @relation(fields: [locationId], references: [id])
+  owner                 User                   @relation("PropertyOwner", fields: [ownerId], references: [id])
+  propertyType          PropertyType           @relation(fields: [propertyTypeId], references: [id])
+  amenity               PropertyAmenity[]
+  ownershipVerification OwnershipVerification?
 
   @@index([ownerId])
   @@index([locationId])
@@ -221,6 +230,84 @@ model Inquiry {
   @@index([createdAt])
 }
 
+model userVerification {
+  id              String                   @id @default(cuid())
+  userId          String                   @unique
+  status          VerificationStatus       @default(PENDING)
+  idType          VerificationDocumentType
+  idNumber        String
+  document        VerificationDocument[]
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  user     User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewer User? @relation("UserVerificationReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+}
+
+model OwnershipVerification {
+  id         String @id @default(cuid())
+  propertyId String @unique
+
+  submittedById String
+  proofType     VerificationDocumentType
+
+  documents VerificationDocument[]
+
+  status          VerificationStatus @default(PENDING)
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  submittedBy User     @relation("OwnershipVerificationSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
+  reviewer    User?    @relation("OwnershipVerificationReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+}
+
+model BusinessVerification {
+  id                 String                 @id @default(cuid())
+  ownerId            String                 @unique
+  businessType       BusinessType
+  businessName       String
+  registrationNumber String
+  documents          VerificationDocument[]
+  status             VerificationStatus     @default(PENDING)
+  reviewedBy         String?
+  reviewedAt         DateTime?
+  rejectionReason    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner    User  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  reviewer User? @relation("BusinessVerificationReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+}
+
+model VerificationDocument {
+  id         String                   @id @default(cuid())
+  storageKey String
+  fileUrl    String?
+  docType    VerificationDocumentType
+  uploadedAt DateTime                 @default(now())
+
+  userVerificationId      String?
+  ownershipVerificationId String?
+  businessVerificationId  String?
+
+  userVerification      userVerification?      @relation(fields: [userVerificationId], references: [id], onDelete: Cascade)
+  ownershipVerification OwnershipVerification? @relation(fields: [ownershipVerificationId], references: [id], onDelete: Cascade)
+  businessVerification  BusinessVerification?  @relation(fields: [businessVerificationId], references: [id], onDelete: Cascade)
+
+  @@index([userVerificationId])
+  @@index([ownershipVerificationId])
+  @@index([businessVerificationId])
+}
+
 enum UserRole {
   USER
   OWNER
@@ -298,4 +385,26 @@ enum InquiryStatus {
   OPEN
   RESPONDED
   CLOSED
+}
+
+enum VerificationDocumentType {
+  PASSPORT
+  NATIONAL_ID
+  DRIVERS_LICENSE
+  VOTERS_ID
+  PROPERTY_DEED
+  UTILITY_BILL
+  LEASE_AGREEMENT
+  BUSINESS_REGISTRATION
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum BusinessType {
+  AGENCY
+  HOTEL
 }
