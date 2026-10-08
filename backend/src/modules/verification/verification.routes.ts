@@ -7,6 +7,7 @@ import {
   createUserVerificationSchema,
   ownershipPropertyIdSchema,
   rejectVerificationSchema,
+  verificationDocumentUploadSchema,
   verificationIdSchema,
 } from "./verification.validation.js";
 import {
@@ -23,7 +24,10 @@ import {
   rejectOwnershipVerificationController,
   rejectUserVerificationController,
 } from "./verification.controller.js";
+
 import { authorizeRoles } from "../../middleware/authorizeRoles.js";
+import { verificationUpload } from "../../middleware/verificationUpload.js";
+import { uploadBusinessVerificationDocumentController, uploadOwnershipVerificationDocumentController, uploadUserVerificationDocumentController } from "./verificationDocument.controller.js";
 
 const verificationRouter = Router();
 
@@ -63,6 +67,30 @@ verificationRouter.get(
   "/business/me",
   authorizeRoles("AGENCY", "HOTEL"),
   getBusinessVerificationController,
+);
+
+// verification document upload
+    // user
+verificationRouter.post(
+  "/user/:verificationId/documents",
+  verificationUpload.single("file"),
+  validateRequest(verificationDocumentUploadSchema),
+  uploadUserVerificationDocumentController,
+);
+
+    // ownership
+verificationRouter.post(
+  "/ownership/:verificationId/documents",
+  verificationUpload.single("file"),
+  validateRequest(verificationDocumentUploadSchema),
+  uploadOwnershipVerificationDocumentController,
+);
+
+verificationRouter.post(
+  "/business/:verificationId/documents",
+  verificationUpload.single("file"),
+  validateRequest(verificationDocumentUploadSchema),
+  uploadBusinessVerificationDocumentController,
 );
 
 // Admin Routes

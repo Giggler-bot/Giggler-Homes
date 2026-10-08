@@ -7,6 +7,8 @@ import { AppError } from "../common/errors/AppError.js";
 
 import { Prisma } from "../generated/prisma/client.js";
 
+import multer from "multer";
+
 export const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
   if (error instanceof ZodError) {
     res.status(400).json({
@@ -15,6 +17,31 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
       errors: error.issues.map((issue) => ({
         message: issue.message,
       })),
+    });
+    return;
+  }
+
+  if (error instanceof multer.MulterError) {
+    if (error.code === "LIMIT_FILE_SIZE") {
+      res.status(400).json({
+        success: false,
+        message: "File size exceeds the 10 MB limit",
+      });
+      return;
+    }
+
+    if (error.code === "LIMIT_UNEXPECTED_FILE") {
+      res.status(400).json({
+        success: false,
+        message:
+          "Invalid file type. Allowed types are JPEG, PNG, WebP, and PDF",
+      });
+      return;
+    }
+
+    res.status(400).json({
+      success: false,
+      message: "Invalid file upload",
     });
     return;
   }
@@ -36,7 +63,7 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
       return;
     }
   }
-  
+
   console.error(error);
 
   res.status(500).json({

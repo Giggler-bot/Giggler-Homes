@@ -7,6 +7,17 @@ const identityDocumentTypes = [
   "DRIVERS_LICENSE",
 ] as const;
 
+const verificationDocumentTypes = [
+  "NATIONAL_ID",
+  "PASSPORT",
+  "VOTERS_ID",
+  "DRIVERS_LICENSE",
+  "PROPERTY_DEED",
+  "UTILITY_BILL",
+  "LEASE_AGREEMENT",
+  "BUSINESS_REGISTRATION",
+] as const;
+
 export const createUserVerificationSchema = z.object({
   body: z.object({
     idType: z.enum(identityDocumentTypes),
@@ -63,5 +74,14 @@ export const rejectVerificationSchema = z.object({
       .trim()
       .min(1, "Rejection reason is required")
       .max(1000, "Rejection reason must not exceed 1000 characters"),
+  }),
+});
+
+export const verificationDocumentUploadSchema = z.object({
+  params: z.object({
+    verificationId: z.cuid(),
+  }),
+  body: z.object({
+    docType: z.enum(verificationDocumentTypes),
   }),
 });

@@ -7,8 +7,8 @@
 **Database:** Neon PostgreSQL
 **Authentication:** JWT and bcryptjs
 **Validation:** Zod
-**Current Progress:** Phase 13 Complete — Inquiries
-**Next Milestone:** Phase 14 — Verification
+**Current Progress:** Phase 14 Complete — Verification
+**Next Milestone:** Phase 15 — Reports and Moderation
 
 ---
 
@@ -32,6 +32,8 @@
 16. [Testing Checklist](#testing-checklist)
 17. [Documentation Milestone](#documentation-milestone)
 18. [Development Update Template](#development-update-template)
+19. [Phase 14 — Verification](#phase-14--verification)
+20. [Latest Project Status](#latest-project-status)
 
 ---
 
@@ -373,7 +375,7 @@ The backend is being built incrementally. Each phase is implemented, tested, and
 | Phase 11 | Amenities | Complete |
 | Phase 12 | Favorites | Complete |
 | Phase 13 | Inquiries | Complete |
-| Phase 14 | Verification | Next |
+| Phase 14 | Verification | Complete |
 | Phase 15 | Reports and Moderation | Planned |
 | Phase 16 | Administration | Planned |
 | Phase 17 | Testing + API Documentation | Planned |
@@ -5334,27 +5336,965 @@ The Inquiry feature is ready for frontend integration.
 
 ---
 
-# Documentation Milestone
+# Phase 14 — Verification
 
-**Status:** Complete through Phase 13
+## Goal
 
-Phase 13 — Inquiries has been implemented, fully tested, and documented. The backend documentation is now synchronized with the actual Inquiry implementation before beginning the next major domain.
+Phase 14 introduces the Giggler Homes verification domain. The purpose is to establish trustworthy evidence around three distinct claims:
 
-## Documentation Order
+1. **User Verification** — proves that an account is associated with a real person.
+2. **Ownership Verification** — proves that a specific property is legitimately associated with its owner.
+3. **Business Verification** — proves that an AGENCY or HOTEL account represents a legitimate business.
+
+Verification evidence is represented by a shared `VerificationDocument` model. Verification documents are private evidence and are deliberately kept separate from normal public property/listing media.
+
+The phase follows the established backend workflow:
 
 ```text
-Phase 13 Complete
+Business Rules
       ↓
-Update backend-dev.md
+Data Model
       ↓
-Review architecture against actual implementation
+Migration
       ↓
-Phase 14 — Verification
+Validation
+      ↓
+Services
+      ↓
+Controllers
+      ↓
+Routes
+      ↓
+Authorization
+      ↓
+Testing
+      ↓
+Documentation
 ```
 
 ---
 
-# Current Progress Summary
+## Phase 14.1 — Business Rules
+
+### Verification Types
+
+The V1 verification domain contains three verification records:
+
+| Verification | What it establishes | Who can submit | Who reviews |
+|---|---|---|---|
+| UserVerification | Account identity | Any authenticated user | ADMIN |
+| OwnershipVerification | Property ownership/association | Property owner | ADMIN |
+| BusinessVerification | Legitimate agency/hotel business | AGENCY or HOTEL | ADMIN |
+
+There is no separate `ListingVerification` model in V1. Listing trust can derive from the verification state of the underlying property and relevant account.
+
+### Verification Lifecycle
+
+The lifecycle is intentionally small:
+
+```text
+PENDING
+   ├──→ VERIFIED
+   └──→ REJECTED
+             │
+             └──→ PENDING  (resubmission)
+```
+
+Rules:
+
+- A `PENDING` verification cannot be submitted again.
+- A `VERIFIED` verification cannot be resubmitted.
+- A `REJECTED` verification can be resubmitted using the same verification record.
+- Resubmission changes the record back to `PENDING`.
+- Resubmission clears previous review metadata and the rejection reason.
+- Only an ADMIN can approve or reject.
+- Only a `PENDING` verification can be approved or rejected.
+- V1 does not implement an `EXPIRED` state.
+
+### User Verification Rules
+
+- Any authenticated account may submit identity verification.
+- The client controls neither `userId` nor reviewer identity.
+- The user ID always comes from the authenticated JWT.
+- Identity document types are restricted to the supported identity enum values.
+
+### Ownership Verification Rules
+
+- The property must exist.
+- V1 submission is restricted to the property's current owner.
+- Agency delegation is intentionally not supported yet because a separate delegation/authorization model has not been introduced.
+- The authenticated user's identity is used as `submittedById`.
+- Other users cannot submit or retrieve another owner's ownership verification.
+- ADMIN can retrieve and review ownership verification.
+
+### Business Verification Rules
+
+- Only `AGENCY` and `HOTEL` accounts can submit business verification.
+- `businessType` must match the authenticated user's role.
+- A USER, OWNER, or other non-business role cannot submit business verification.
+- Business verification belongs to the account through `ownerId`.
+- The client cannot choose a different `ownerId`.
+
+### Evidence Rules
+
+Verification evidence is not ordinary listing/property media.
+
+`VerificationDocument` is intended for private verification evidence such as:
+
+- National ID
+- Passport
+- Voter's ID
+- Driver's License
+- Property deed
+- Utility bill
+- Lease agreement
+- Business registration evidence
+
+Documents are associated with exactly one verification parent by service-layer rules. Prisma provides the three nullable foreign keys, while the service layer ensures that a document is not attached to multiple verification parents or to none.
+
+---
+
+## Phase 14.2 — Data Model
+
+### VerificationStatus
+
+```prisma
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+```
+
+### BusinessType
+
+```prisma
+enum BusinessType {
+  AGENCY
+  HOTEL
+}
+```
+
+### VerificationDocumentType
+
+```prisma
+enum VerificationDocumentType {
+  NATIONAL_ID
+  PASSPORT
+  VOTERS_ID
+  DRIVERS_LICENSE
+
+  PROPERTY_DEED
+  UTILITY_BILL
+  LEASE_AGREEMENT
+
+  BUSINESS_REGISTRATION
+}
+```
+
+### UserVerification
+
+```prisma
+model UserVerification {
+  id              String                   @id @default(cuid())
+  userId          String                   @unique
+  user            User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status          VerificationStatus       @default(PENDING)
+  idType          VerificationDocumentType
+  idNumber        String
+
+  documents       VerificationDocument[]
+
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+
+  reviewer User? @relation(
+    "UserVerificationReviewer",
+    fields: [reviewedBy],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+}
+```
+
+### OwnershipVerification
+
+```prisma
+model OwnershipVerification {
+  id              String                   @id @default(cuid())
+
+  propertyId      String                   @unique
+  property        Property                 @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  submittedById   String
+  submittedBy     User                     @relation("OwnershipVerificationSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
+
+  proofType       VerificationDocumentType
+
+  documents       VerificationDocument[]
+
+  status          VerificationStatus       @default(PENDING)
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+
+  reviewer User? @relation(
+    "OwnershipVerificationReviewer",
+    fields: [reviewedBy],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+}
+```
+
+### BusinessVerification
+
+```prisma
+model BusinessVerification {
+  id                 String                   @id @default(cuid())
+
+  ownerId            String                   @unique
+  owner              User                     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  businessType       BusinessType
+  businessName       String
+  registrationNumber String
+
+  documents          VerificationDocument[]
+
+  status             VerificationStatus       @default(PENDING)
+  reviewedBy         String?
+  reviewedAt         DateTime?
+  rejectionReason    String?
+
+  reviewer User? @relation(
+    "BusinessVerificationReviewer",
+    fields: [reviewedBy],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+}
+```
+
+### VerificationDocument
+
+```prisma
+model VerificationDocument {
+  id         String                   @id @default(cuid())
+  storageKey String
+  fileUrl    String?
+  docType    VerificationDocumentType
+  uploadedAt DateTime                 @default(now())
+
+  userVerificationId      String?
+  userVerification        UserVerification?      @relation(fields: [userVerificationId], references: [id], onDelete: Cascade)
+
+  ownershipVerificationId String?
+  ownershipVerification   OwnershipVerification? @relation(fields: [ownershipVerificationId], references: [id], onDelete: Cascade)
+
+  businessVerificationId  String?
+  businessVerification    BusinessVerification?  @relation(fields: [businessVerificationId], references: [id], onDelete: Cascade)
+
+  @@index([userVerificationId])
+  @@index([ownershipVerificationId])
+  @@index([businessVerificationId])
+}
+```
+
+### User Relations
+
+The User model was extended with:
+
+```prisma
+userVerification UserVerification?
+businessVerification BusinessVerification?
+
+submittedOwnershipVerifications OwnershipVerification[]
+  @relation("OwnershipVerificationSubmitter")
+
+reviewedVerifications UserVerification[]
+  @relation("UserVerificationReviewer")
+
+reviewedOwnershipVerifications OwnershipVerification[]
+  @relation("OwnershipVerificationReviewer")
+
+reviewedBusinessVerifications BusinessVerification[]
+  @relation("BusinessVerificationReviewer")
+```
+
+### Property Relation
+
+The Property model was extended with:
+
+```prisma
+ownershipVerification OwnershipVerification?
+```
+
+### Identifier Design
+
+The verification models use CUID primary keys while existing property/user identifiers use UUIDs.
+
+Therefore:
+
+```text
+Verification ID → z.cuid()
+Property ID     → z.uuid()
+User ID         → z.uuid()
+```
+
+This distinction is important when defining route validation.
+
+---
+
+## Phase 14.3 — Database Migration
+
+The verification models were migrated into PostgreSQL without resetting the database.
+
+Migration workflow:
+
+```bash
+npx prisma format
+npx prisma validate
+npm run type-check
+npx prisma migrate dev --name add_verification_models
+npx prisma migrate status
+npx prisma generate
+```
+
+The existing database history was preserved. The migration was applied normally and the Prisma client was regenerated afterward.
+
+### Migration Safety Rule
+
+As established in earlier phases, an already-applied migration is treated as immutable. If additional database-specific SQL or structural changes are required after a migration has been applied, create a new migration rather than editing migration history.
+
+---
+
+## Phase 14.4 — Validation
+
+Validation uses Zod and follows the existing request-validation middleware.
+
+### User Verification
+
+```ts
+export const createUserVerificationSchema = z.object({
+  body: z.object({
+    idType: z.enum([
+      "NATIONAL_ID",
+      "PASSPORT",
+      "VOTERS_ID",
+      "DRIVERS_LICENSE",
+    ]),
+    idNumber: z.string().trim().min(1).max(100),
+  }),
+});
+```
+
+### Ownership Verification
+
+```ts
+export const createOwnershipVerificationSchema = z.object({
+  params: z.object({
+    propertyId: z.uuid(),
+  }),
+  body: z.object({
+    proofType: z.enum([
+      "PROPERTY_DEED",
+      "UTILITY_BILL",
+      "LEASE_AGREEMENT",
+    ]),
+  }),
+});
+
+export const ownershipPropertyIdSchema = z.object({
+  params: z.object({
+    propertyId: z.uuid(),
+  }),
+});
+```
+
+### Business Verification
+
+```ts
+export const createBusinessVerificationSchema = z.object({
+  body: z.object({
+    businessType: z.enum(["AGENCY", "HOTEL"]),
+    businessName: z.string().trim().min(1).max(200),
+    registrationNumber: z.string().trim().min(1).max(100),
+  }),
+});
+```
+
+### Verification IDs
+
+Verification IDs are CUIDs:
+
+```ts
+export const verificationIdSchema = z.object({
+  params: z.object({
+    verificationId: z.cuid(),
+  }),
+});
+```
+
+The rejection schema uses the same CUID validation and requires a non-empty rejection reason with a maximum of 1,000 characters.
+
+### Validation Design
+
+The client cannot submit security-sensitive identifiers such as:
+
+- `userId`
+- `submittedById`
+- `ownerId`
+- `reviewedBy`
+- `status`
+
+These values are determined by the authenticated identity, resource ownership, role authorization, or server-side lifecycle logic.
+
+---
+
+## Phase 14.5 — Service Layer
+
+The service layer contains the business rules and prevents controllers from becoming authorization/business-logic containers.
+
+### User Verification Services
+
+Implemented:
+
+```text
+createUserVerification(userId, idType, idNumber)
+getUserVerification(userId)
+approveUserVerification(verificationId, adminId)
+rejectUserVerification(verificationId, adminId, rejectionReason)
+```
+
+Behavior:
+
+- No existing record → create `PENDING`.
+- Existing `PENDING` → 409.
+- Existing `VERIFIED` → 409.
+- Existing `REJECTED` → update same row to `PENDING`.
+- Resubmission clears `reviewedBy`, `reviewedAt`, and `rejectionReason`.
+- Approval requires `PENDING`.
+- Rejection requires `PENDING`.
+- Reviewer identity is connected through Prisma's nested relation syntax.
+
+Example reviewer assignment:
+
+```ts
+reviewer: {
+  connect: { id: adminId },
+}
+```
+
+### Ownership Verification Services
+
+Implemented:
+
+```text
+createOwnershipVerification(propertyId, submittedById, proofType)
+getOwnershipVerification(propertyId, userId, isAdmin)
+approveOwnershipVerification(verificationId, adminId)
+rejectOwnershipVerification(verificationId, adminId, rejectionReason)
+```
+
+Behavior:
+
+- Property must exist.
+- Submission is allowed only when `property.ownerId === submittedById`.
+- Cross-owner submission → 403.
+- Owner retrieval is allowed.
+- Non-owner retrieval → 403.
+- ADMIN retrieval is allowed.
+- Existing `PENDING` → 409.
+- Existing `VERIFIED` → 409.
+- `REJECTED` can be resubmitted to `PENDING`.
+- Only ADMIN can approve/reject.
+
+### Business Verification Services
+
+Implemented:
+
+```text
+createBusinessVerification(userId, businessType, businessName, registrationNumber)
+getBusinessVerification(userId, isAdmin)
+approveBusinessVerification(verificationId, adminId)
+rejectBusinessVerification(verificationId, adminId, rejectionReason)
+```
+
+Behavior:
+
+- User must exist.
+- Role must be `AGENCY` or `HOTEL`.
+- Submitted `businessType` must match the authenticated account role.
+- Existing `PENDING` → 409.
+- Existing `VERIFIED` → 409.
+- `REJECTED` can be resubmitted.
+- Only ADMIN can approve/reject.
+
+---
+
+## Phase 14.6 — Controller Layer
+
+Controllers remain intentionally thin.
+
+### User Controllers
+
+```text
+createUserVerificationController
+getUserVerificationController
+approveUserVerificationController
+rejectUserVerificationController
+```
+
+### Ownership Controllers
+
+```text
+createOwnershipVerificationController
+getOwnershipVerificationController
+approveOwnershipVerificationController
+rejectOwnershipVerificationController
+```
+
+### Business Controllers
+
+```text
+createBusinessVerificationController
+getBusinessVerificationController
+approveBusinessVerificationController
+rejectBusinessVerificationController
+```
+
+Controllers obtain the authenticated identity from `req.user` and pass the required values to the service layer.
+
+The client is never trusted to identify the account that owns or submits a verification.
+
+---
+
+## Phase 14.7 — Routes
+
+The verification router is protected by authentication:
+
+```ts
+const verificationRouter = Router();
+verificationRouter.use(authenticate);
+```
+
+### User Verification
+
+```text
+POST  /api/v1/verifications/user
+GET   /api/v1/verifications/user/me
+```
+
+### Ownership Verification
+
+```text
+POST  /api/v1/verifications/ownership/properties/:propertyId
+GET   /api/v1/verifications/ownership/properties/:propertyId
+```
+
+### Business Verification
+
+```text
+POST  /api/v1/verifications/business
+GET   /api/v1/verifications/business/me
+```
+
+### Administrative Review
+
+```text
+PATCH /api/v1/verifications/user/:verificationId/approve
+PATCH /api/v1/verifications/user/:verificationId/reject
+
+PATCH /api/v1/verifications/ownership/:verificationId/approve
+PATCH /api/v1/verifications/ownership/:verificationId/reject
+
+PATCH /api/v1/verifications/business/:verificationId/approve
+PATCH /api/v1/verifications/business/:verificationId/reject
+```
+
+The router is registered with:
+
+```ts
+app.use("/api/v1/verifications", verificationRouter);
+```
+
+---
+
+## Phase 14.8 — Authorization
+
+Authorization follows the established Giggler Homes pattern:
+
+```text
+authenticate
+      ↓
+role authorization where appropriate
+      ↓
+resource ownership checks where required
+      ↓
+service-level business rules
+```
+
+### User Verification
+
+Any authenticated user can submit and view their own verification.
+
+### Ownership Verification
+
+Ownership is checked against the actual property record rather than relying only on a role.
+
+```text
+Authenticated user
+       ↓
+Property lookup
+       ↓
+property.ownerId === req.user.id
+       ↓
+Allow / Reject
+```
+
+This is intentionally not implemented as a simple `authorizeRoles(...)` rule because being an OWNER role does not prove ownership of every property.
+
+### Business Verification
+
+Business verification routes use:
+
+```ts
+authorizeRoles("AGENCY", "HOTEL")
+```
+
+The service additionally verifies that the submitted `businessType` matches the user's actual role.
+
+### Administrative Review
+
+Approval and rejection routes use:
+
+```ts
+authorizeRoles("ADMIN")
+```
+
+ADMIN has unrestricted review access but does not impersonate the original submitter.
+
+---
+
+## Phase 14.9 — Testing
+
+Phase 14 was tested across normal flows, invalid input, authorization boundaries, lifecycle transitions, and security-sensitive behavior.
+
+### User Verification Tests
+
+```text
+Create verification                         PASS
+Retrieve own verification                  PASS
+Duplicate PENDING submission               PASS → 409
+Invalid document type                      PASS → 400
+Empty identity number                      PASS → 400
+Unauthenticated request                    PASS → 401
+Non-admin approval                         PASS → 403
+Admin approval                             PASS → 200
+Approve already VERIFIED                   PASS → 409
+Admin rejection                            PASS
+Missing rejection reason                   PASS → 400
+Rejected verification resubmission         PASS → PENDING
+```
+
+### Ownership Verification Tests
+
+```text
+Create for owned property                  PASS
+Cross-owner submission                     PASS → 403
+Owner retrieval                            PASS → 200
+Other-owner retrieval                      PASS → 403
+ADMIN retrieval                            PASS → 200
+Duplicate PENDING submission               PASS → 409
+Admin approval                             PASS
+Admin rejection                            PASS
+Rejected resubmission                      PASS → PENDING
+```
+
+### Business Verification Tests
+
+```text
+AGENCY submission                           PASS
+HOTEL submission                            PASS
+USER submission                             PASS → 403
+Business type mismatch                      PASS → 400
+Duplicate PENDING submission                PASS → 409
+Admin approval                              PASS
+Admin rejection                             PASS
+Rejected resubmission                       PASS → PENDING
+```
+
+### Security Tests
+
+The following security boundaries were explicitly tested:
+
+```text
+Client-controlled userId                    BLOCKED
+Client-controlled ownerId                   BLOCKED
+Client-controlled submittedById             BLOCKED
+Client-controlled reviewer                   BLOCKED
+Client-controlled verification status        BLOCKED
+Cross-user ownership access                  BLOCKED
+Cross-user verification access               BLOCKED
+Non-admin review                             BLOCKED
+Unsupported document types                   BLOCKED
+Invalid UUID/CUID identifiers                BLOCKED
+Private verification evidence exposure      BLOCKED
+```
+
+### VerificationDocument Tests
+
+The document/evidence layer was also tested for:
+
+- allowed document/file types
+- file-size/security handling
+- cross-user protection
+- document-type protection
+- multiple documents per verification
+- exactly-one-parent integrity at the service layer
+- public API exposure prevention
+- Cloudinary failure handling
+- database failure followed by Cloudinary cleanup/rollback
+
+All Phase 14 tests passed.
+
+---
+
+## Phase 14.10 — VerificationDocument Security and Failure Handling
+
+Verification documents are more sensitive than ordinary property media because they can contain identity, ownership, or business-registration information.
+
+### Separate From Public Media
+
+`VerificationDocument` is not part of the normal public `Media` system.
+
+The Media module is intended for property-facing images/videos, while VerificationDocument exists for private compliance/evidence workflows.
+
+### Storage Metadata
+
+The model stores:
+
+```text
+storageKey
+fileUrl (optional)
+docType
+uploadedAt
+```
+
+The storage key acts as the server-side reference to the stored evidence.
+
+### Parent Integrity
+
+The schema contains three optional parent foreign keys because the document can belong to one of three verification types. Prisma alone does not express the rule that exactly one must be populated.
+
+Therefore the V1 service layer enforces:
+
+```text
+Exactly one parent verification
+        ↓
+Accept
+
+Zero parents
+        ↓
+Reject
+
+Multiple parents
+        ↓
+Reject
+```
+
+### Failure Handling
+
+Where external storage is involved, the implementation follows the same compensating-failure philosophy established by the Media module:
+
+```text
+Upload external document
+        ↓
+Persist database metadata
+        ↓
+If database operation fails
+        ↓
+Remove uploaded external object
+```
+
+This prevents orphaned private evidence from remaining in storage after a failed database operation.
+
+---
+
+## Phase 14.11 — Problems Encountered and Resolved
+
+### Problem 1 — Verification IDs Were CUIDs, Not UUIDs
+
+The verification models use:
+
+```prisma
+@default(cuid())
+```
+
+but route validation initially treated verification IDs as UUIDs.
+
+This was corrected by changing the verification route schemas to:
+
+```ts
+z.cuid()
+```
+
+while property IDs continue to use:
+
+```ts
+z.uuid()
+```
+
+### Problem 2 — Prisma Reviewer Relation Assignment
+
+The Prisma generated client did not accept a direct scalar assignment in the implemented create/update shape for the reviewer relation.
+
+The service was corrected to use the relation API:
+
+```ts
+reviewer: {
+  connect: { id: adminId },
+}
+```
+
+This keeps the Prisma relation semantics explicit.
+
+### Problem 3 — Rejection Reason Field Typo
+
+A field reference was incorrectly written as `rejectedReason` instead of the actual schema field:
+
+```text
+rejectionReason
+```
+
+The service was corrected to use the schema's exact field name.
+
+### Problem 4 — Sensitive Evidence Requires Stronger Security Boundaries
+
+Verification documents cannot be treated like ordinary public property media. The implementation therefore keeps verification evidence behind authenticated verification workflows and explicitly tests against public API exposure and cross-user access.
+
+---
+
+## Phase 14.12 — Important Design Decisions
+
+### 1. Identity, Ownership, and Business Legitimacy Are Different Claims
+
+A verified user is not automatically the verified owner of every property they create. Likewise, an agency/hotel business verification does not itself prove ownership of a particular property.
+
+Keeping these claims separate prevents one verification type from being incorrectly interpreted as another.
+
+### 2. No ListingVerification Model in V1
+
+Listing verification is not stored as a separate verification record. A listing is associated with a property, so the V1 design avoids duplicating verification state at the listing level.
+
+### 3. One Current Verification Record
+
+Each user has one current UserVerification. Each property has one current OwnershipVerification. Each business account has one current BusinessVerification.
+
+Rejected submissions update the existing verification record instead of creating an unlimited sequence of current records.
+
+### 4. Rejected Submissions Can Be Resubmitted
+
+A rejection is not a terminal state. The verification can move back to `PENDING` after the applicant corrects or replaces the evidence.
+
+### 5. ADMIN Is the Only Reviewer
+
+Verification decisions are administrative actions. Regular users, property owners, agencies, and hotels cannot approve themselves or one another.
+
+### 6. Ownership Uses Resource Authorization
+
+A user's role is not enough to establish property ownership. The property record is checked directly.
+
+### 7. Verification Evidence Is Private
+
+Verification documents are deliberately separated from normal public property media and should not be exposed through public listing/property endpoints.
+
+### 8. V1 Does Not Support Agency Delegation
+
+An agency cannot submit ownership verification on behalf of another property owner in V1. Supporting that properly requires an explicit delegation/authorization model.
+
+### 9. No Expiration in V1
+
+Verification expiry and periodic re-verification can be added later if the product requirements justify it. They are intentionally outside the current lifecycle.
+
+### 10. Database Constraints and Service Rules Work Together
+
+Unique constraints such as `userId @unique`, `propertyId @unique`, and `ownerId @unique` prevent multiple current verification records, while service-layer rules control lifecycle and authorization.
+
+---
+
+## Phase 14.13 — Verification Module Structure
+
+The verification domain follows the same modular backend structure used throughout the project:
+
+```text
+src/
+├── modules/
+│   └── verifications/
+│       ├── verification.controller.ts
+│       ├── verification.routes.ts
+│       ├── verification.service.ts
+│       └── verification.validation.ts
+│
+├── middleware/
+│   ├── authenticate.ts
+│   ├── authorizeRoles.ts
+│   └── validateRequest.ts
+│
+└── lib/
+    └── prisma.ts
+```
+
+The exact filenames may evolve as the codebase is refactored, but the architectural responsibility remains:
+
+```text
+Validation → request shape
+Controller → HTTP layer
+Service → business rules
+Prisma → persistence
+Middleware → authentication/authorization
+```
+
+---
+
+## Phase 14.14 — Result
+
+Phase 14 is complete.
+
+```text
+Business Rules             ✅
+Data Model                 ✅
+Migration                  ✅
+Validation                 ✅
+Services                   ✅
+Controllers                ✅
+Routes                     ✅
+Authorization              ✅
+VerificationDocument       ✅
+Security Testing           ✅
+Failure Testing            ✅
+Documentation              ✅
+```
+
+The Verification domain is ready for frontend integration and for future administrative tooling.
+
+---
+
+# Latest Project Status
+
+## Current Progress Summary
 
 ```text
 Phase 1  ✅ Backend Project Setup
@@ -5370,8 +6310,8 @@ Phase 10 ✅ Media Management
 Phase 11 ✅ Amenities
 Phase 12 ✅ Favorites
 Phase 13 ✅ Inquiries
-
-Phase 14 ⏭️ Verification
+Phase 14 ✅ Verification
+Phase 15 ⏭️ Reports and Moderation
 ```
 
 ## Current Project Structure
@@ -5385,67 +6325,138 @@ Media Module         ✅
 Amenities Module     ✅
 Favorites Module     ✅
 Inquiry Module       ✅
-Verification Module  ⏭️
-Reports Module       ⏳
+Verification Module  ✅
+Reports Module       ⏭️
 Administration       ⏳
+```
+
+## Current API Endpoints
+
+### Authentication
+
+```text
+POST /api/v1/auth/register
+POST /api/v1/auth/login
+GET  /api/v1/auth/me
+```
+
+### Verification
+
+```text
+POST  /api/v1/verifications/user
+GET   /api/v1/verifications/user/me
+
+POST  /api/v1/verifications/ownership/properties/:propertyId
+GET   /api/v1/verifications/ownership/properties/:propertyId
+
+POST  /api/v1/verifications/business
+GET   /api/v1/verifications/business/me
+
+PATCH /api/v1/verifications/user/:verificationId/approve
+PATCH /api/v1/verifications/user/:verificationId/reject
+
+PATCH /api/v1/verifications/ownership/:verificationId/approve
+PATCH /api/v1/verifications/ownership/:verificationId/reject
+
+PATCH /api/v1/verifications/business/:verificationId/approve
+PATCH /api/v1/verifications/business/:verificationId/reject
+```
+
+The full historical API documentation for the earlier modules remains in their respective phase sections above.
+
+## Current Security Model
+
+```text
+JWT authentication
+      ↓
+Role-based authorization where applicable
+      ↓
+Resource ownership checks
+      ↓
+Service-level business rules
+      ↓
+Centralized error handling
+```
+
+Verification adds a particularly important rule:
+
+```text
+Sensitive evidence
+      ↓
+Authenticated verification workflow
+      ↓
+No public listing/property exposure
+```
+
+## Current Migration State
+
+The database contains the schema required by the completed phases through Verification. Migration history is preserved and applied migrations are treated as immutable.
+
+## Documentation Milestone
+
+**Status:** Complete through Phase 14.
+
+Phase 14 — Verification has been implemented, tested, and documented. The backend documentation is now synchronized with the completed Verification domain.
+
+### Documentation Order
+
+```text
+Phase 14 Complete
+      ↓
+Update backend-dev.md
+      ↓
+Review architecture against actual implementation
+      ↓
+Phase 15 — Reports and Moderation
 ```
 
 ---
 
 # Next Phase
 
-## Phase 14 — Verification
+## Phase 15 — Reports and Moderation
 
-The next major backend domain is:
+The next planned backend domain is **Reports and Moderation**.
 
-```text
-Verification
-```
-
-Before implementation, the Verification domain should first be designed around:
+The exact Phase 15 design should be finalized before implementation, following the established process:
 
 ```text
-User
-Property
-Listing
-Verification
-```
-
-including:
-
-* What can be verified
-* Who can request verification
-* Who can approve or reject verification
-* Verification status transitions
-* Required evidence/documents
-* Ownership and authorization rules
-* Whether verification attaches to Users, Properties, Listings, or more than one domain
-* Validation and security requirements
-* Whether verification history must be retained
-
-The implementation will continue using the established workflow:
-
-```text
-Schema
-  ↓
+Business Rules
+      ↓
+Data Model
+      ↓
 Migration
-  ↓
-Prisma Client
-  ↓
+      ↓
 Validation
-  ↓
+      ↓
 Service
-  ↓
+      ↓
 Controller
-  ↓
+      ↓
 Routes
-  ↓
+      ↓
 Authorization
-  ↓
+      ↓
 Testing
-  ↓
+      ↓
 Documentation
 ```
+
+Potential areas to define during Phase 15 planning include:
+
+- What users can report.
+- Which resources can receive reports.
+- Report categories and severity.
+- Duplicate-report rules.
+- Report lifecycle.
+- Moderator/admin actions.
+- Whether reported resources are automatically hidden or only manually moderated.
+- Evidence attached to reports.
+- Reporter privacy.
+- Abuse prevention and rate limiting.
+- Audit requirements.
+
+These are planning questions for Phase 15 and are not treated as implemented features yet.
 
 ---
 
@@ -5455,14 +6466,15 @@ After each major domain is completed:
 
 ```text
 Implementation
-     ↓
+      ↓
 Testing
-     ↓
+      ↓
 Documentation
-     ↓
+      ↓
 Architecture review
-     ↓
+      ↓
 Next domain
 ```
 
 This keeps the documentation synchronized with the actual backend rather than allowing it to become a separate, outdated description of the system.
+

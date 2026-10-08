@@ -2,7 +2,6 @@ import { UploadApiResponse } from "cloudinary";
 import cloudinary from "../config/cloudinary.js";
 
 
-
 export function uploadMedia(
   file: Buffer,
   folder: string,
