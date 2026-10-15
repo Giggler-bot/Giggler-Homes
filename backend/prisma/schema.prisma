@@ -35,6 +35,10 @@ model User {
   reviewedOwnershipVerifications  OwnershipVerification[] @relation("OwnershipVerificationReviewer")
   reviewedBusinessVerifications   BusinessVerification[]  @relation("BusinessVerificationReviewer")
 
+  submittedReports Report[] @relation("SubmittedReports")
+
+  moderationActions ModerationAction[] @relation("ModerationActions")
+
   @@index([role])
   @@index([status])
   @@index([deletedAt])
@@ -139,6 +143,7 @@ model Listing {
   property  Property   @relation(fields: [propertyId], references: [id])
   favorites Favorite[]
   inquires  Inquiry[]
+  reports   Report[]
 
   @@index([propertyId])
   @@index([status, listingType])
@@ -407,4 +412,74 @@ enum VerificationStatus {
 enum BusinessType {
   AGENCY
   HOTEL
+}
+
+enum ReportStatus {
+  PENDING
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum ListingReportReason {
+  FRAUD
+  SCAM
+  MISLEADING_INFORMATION
+  DUPLICATE_LISTING
+  WRONG_PRICE
+  WRONG_LOCATION
+  ALREADY_UNAVAILABLE
+  INAPPROPRIATE_CONTENT
+  OTHER
+}
+
+enum ModerationActionType {
+  SUSPEND_LISTING
+  REMOVE_LISTING
+  RESTORE_LISTING
+  WARN_USER
+  SUSPEND_USER
+  BAN_USER
+}
+
+model Report {
+  id         String @id @default(uuid())
+  reporterId String
+  listingId  String
+
+  reason      ListingReportReason
+  description String?
+  status      ReportStatus        @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reporter User    @relation("SubmittedReports", fields: [reporterId], references: [id], onDelete: Cascade)
+  listing  Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  moderationAction ModerationAction[]
+
+  @@index([listingId])
+  @@index([reporterId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ModerationAction {
+  id       String @id @default(cuid())
+  reportId String
+  adminId  String
+
+  actionType ModerationActionType
+  reason     String
+
+  createdAt DateTime @default(now())
+
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  admin  User   @relation("ModerationActions", fields: [adminId], references: [id], onDelete: Restrict)
+
+  @@index([reportId])
+  @@index([adminId])
+  @@index([actionType])
+  @@index([createdAt])
 }
