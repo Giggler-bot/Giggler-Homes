@@ -37,7 +37,7 @@ model User {
 
   submittedReports Report[] @relation("SubmittedReports")
 
-  moderationActions ModerationAction[] @relation("ModerationActions")
+  moderationActions ModerationActions[] @relation("ModerationActions")
 
   @@index([role])
   @@index([status])
@@ -326,6 +326,7 @@ enum UserStatus {
   INACTIVE
   SUSPENDED
   DEACTIVATED
+  BANNED
 }
 
 enum GhanaRegion {
@@ -356,6 +357,8 @@ enum ListingStatus {
   ARCHIVED
   SOLD
   RENTED
+  SUSPENDED
+  REMOVED
 }
 
 enum ListingType {
@@ -457,7 +460,7 @@ model Report {
   reporter User    @relation("SubmittedReports", fields: [reporterId], references: [id], onDelete: Cascade)
   listing  Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
-  moderationAction ModerationAction[]
+  moderationAction ModerationActions[]
 
   @@index([listingId])
   @@index([reporterId])
@@ -465,7 +468,7 @@ model Report {
   @@index([createdAt])
 }
 
-model ModerationAction {
+model ModerationActions {
   id       String @id @default(cuid())
   reportId String
   adminId  String
@@ -474,6 +477,12 @@ model ModerationAction {
   reason     String
 
   createdAt DateTime @default(now())
+
+  previousListingStatus ListingStatus?
+  newListingStatus      ListingStatus?
+
+  previousUserStatus UserStatus?
+  newUserStatus      UserStatus?
 
   report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
   admin  User   @relation("ModerationActions", fields: [adminId], references: [id], onDelete: Restrict)

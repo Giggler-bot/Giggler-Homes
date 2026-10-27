@@ -20,6 +20,8 @@ import amenityRouter from "./modules/amenity/amenity.routes.js";
 import favoriteRouter from "./modules/favorites/favorite.routes.js";
 import inquiryRouter from "./modules/inquries/inquiry.routes.js";
 import verificationRouter from "./modules/verification/verification.routes.js";
+import reportRouter from "./modules/Reports/report.routes.js";
+import adminReportRouter from "./modules/Reports/report.admin.routes.js";
 
 const app = express();
 
@@ -76,7 +78,11 @@ app.use('/api/v1/favorites', favoriteRouter);
 
 app.use('/api/v1/inquiries', inquiryRouter);
 
-app.use('/api/v1/verifications', verificationRouter)
+app.use('/api/v1/verifications', verificationRouter);
+
+app.use('/api/v1/reports', reportRouter);
+
+app.use('/api/v1/admin/reports', adminReportRouter)
 
 
 // Handles routes that are not found
