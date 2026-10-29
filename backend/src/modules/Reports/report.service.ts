@@ -214,7 +214,7 @@ export const getReportById = async (
           },
         },
       },
-      moderationActions: {
+      moderationAction: {
         orderBy: { createdAt: "desc" },
         select: {
           id: true,
@@ -248,7 +248,7 @@ export const getReportById = async (
   }
 
   // Reporters must not receive internal moderation reasons.
-  const { moderationActions, ...publicReport } = report;
+  const { moderationAction, ...publicReport } = report;
 
   return {
     ...publicReport,
