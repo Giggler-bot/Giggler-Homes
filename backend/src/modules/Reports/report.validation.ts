@@ -20,7 +20,12 @@ export const createListingReportSchema = z.object({
   body: z
     .object({
       reason: z.enum(listingReportReasons),
-      description: z.string().trim().max(1000).optional(),
+      description: z
+        .string()
+        .trim()
+        .max(1000)
+        .transform((value) => value || undefined)
+        .optional(),
     })
     .superRefine((data, ctx) => {
       if (data.reason === "OTHER" && !data.description) {
