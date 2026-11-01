@@ -14,12 +14,12 @@ export async function createAmenityController(
   next: NextFunction,
 ) {
   try {
-    const amentity = await createAmenity(req.body);
+    const amenity = await createAmenity(req.body);
 
     res.status(201).json({
       success: true,
       message: "Amenity created successfully",
-      data: amentity,
+      data: amenity,
     });
   } catch (error) {
     next(error);
