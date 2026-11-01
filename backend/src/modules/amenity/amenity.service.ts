@@ -27,13 +27,24 @@ export async function createAmenity(data: {
     throw new AppError("Amenity already exists", 409);
   }
 
-  return prisma.amenity.create({
-    data: {
-      name: data.name,
-      icon: data.icon,
-      category: data.category,
-    },
-  });
+  try {
+    return prisma.amenity.create({
+      data: {
+        name: data.name,
+        icon: data.icon,
+        category: data.category,
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new AppError("Amenity name already exists", 409);
+    }
+
+    throw error;
+  }
 }
 
 export async function getAmenities(
