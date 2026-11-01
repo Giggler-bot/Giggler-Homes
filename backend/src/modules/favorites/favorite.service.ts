@@ -7,9 +7,18 @@ export const createFavorite = async (userId: string, listingId: string) => {
       id: listingId,
       status: "ACTIVE",
     },
+    select: {
+      id: true,
+      deletedAt: true,
+      property: {
+        select: {
+          deletedAt: true,
+        },
+      },
+    },
   });
 
-  if (!listing) {
+  if (!listing || listing.deletedAt || listing.property.deletedAt) {
     throw new AppError("Active listing not found", 404);
   }
 
@@ -35,34 +44,30 @@ export const createFavorite = async (userId: string, listingId: string) => {
 };
 
 export const deleteFavorite = async (userId: string, listingId: string) => {
-    const favorite = await prisma.favorite.findUnique({
-        where: {
-            userId_listingId: {
-                userId,
-                listingId,
-            },
-        },
-    });  
-    
-    if(!favorite){
-        throw new AppError("Favorite not found", 404);
-    }
+  const favorite = await prisma.favorite.findUnique({
+    where: {
+      userId_listingId: {
+        userId,
+        listingId,
+      },
+    },
+  });
 
-    await prisma.favorite.delete({
-        where: {
-            userId_listingId: {
-                userId,
-                listingId
-            },
-        },
-    });
+  if (!favorite) {
+    throw new AppError("Favorite not found", 404);
+  }
+
+  await prisma.favorite.delete({
+    where: {
+      userId_listingId: {
+        userId,
+        listingId,
+      },
+    },
+  });
 };
 
-
-export const getFavoriteStatus = async (
-  userId: string,
-  listingId: string,
-) => {
+export const getFavoriteStatus = async (userId: string, listingId: string) => {
   const favorite = await prisma.favorite.findUnique({
     where: {
       userId_listingId: {
@@ -81,42 +86,42 @@ export const getFavoriteStatus = async (
   };
 };
 
-export const getMyFavorites = async(userId: string, page = 1, limit = 20) => {
-    const skip = (page - 1) * limit;
+export const getMyFavorites = async (userId: string, page = 1, limit = 20) => {
+  const skip = (page - 1) * limit;
 
-    const [favorites, total] = await prisma.$transaction([
-        prisma.favorite.findMany({
-            where: {
-                userId,
-            },
-            orderBy: {
-                createdAt: "desc",
-            },
-            skip,
-            take: limit,
-            include: {
-                listing: {
-                    include: {
-                        property: true,
-                    },
-                },
-            },
-        }),
+  const [favorites, total] = await prisma.$transaction([
+    prisma.favorite.findMany({
+      where: {
+        userId,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      skip,
+      take: limit,
+      include: {
+        listing: {
+          include: {
+            property: true,
+          },
+        },
+      },
+    }),
 
-        prisma.favorite.count({
-            where: {
-                userId,
-            },
-        }),
-    ]);
+    prisma.favorite.count({
+      where: {
+        userId,
+      },
+    }),
+  ]);
 
-    return {
-        favorites,
-        pagination: {
-            page,
-            limit,
-            total,
-            totalPages: Math.ceil(total / limit),
-        }
-    }
-}
+  return {
+    favorites,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+};
