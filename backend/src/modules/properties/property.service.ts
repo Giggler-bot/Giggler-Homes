@@ -1,6 +1,8 @@
 import { prisma } from "../../lib/prisma.js";
 import { generateSlug } from "../../common/utils/slug.js";
 import { AppError } from "../../common/errors/AppError.js";
+import { Prisma } from "../../generated/prisma/client.js";
+
 
 type CreatePropertyInput = {
   ownerId: string;
@@ -152,13 +154,8 @@ export async function assignAmenityToProperty(
   amenityId: string,
 ) {
   const property = await prisma.property.findUnique({
-    where: {
-      id: propertyId,
-    },
-    select: {
-      id: true,
-      deletedAt: true,
-    },
+    where: { id: propertyId },
+    select: { id: true, deletedAt: true },
   });
 
   if (!property) {
@@ -170,13 +167,8 @@ export async function assignAmenityToProperty(
   }
 
   const amenity = await prisma.amenity.findUnique({
-    where: {
-      id: amenityId,
-    },
-    select: {
-      id: true,
-      deletedAt: true,
-    },
+    where: { id: amenityId },
+    select: { id: true, deletedAt: true },
   });
 
   if (!amenity) {
@@ -200,15 +192,24 @@ export async function assignAmenityToProperty(
     throw new AppError("Amenity is already assigned to this property", 409);
   }
 
-  return prisma.propertyAmenity.create({
-    data: {
-      propertyId,
-      amenityId,
-    },
-    include: {
-      amenity: true,
-    },
-  });
+  try {
+    return await prisma.propertyAmenity.create({
+      data: { propertyId, amenityId },
+      include: { amenity: true },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new AppError(
+        "Amenity is already assigned to this property",
+        409,
+      );
+    }
+
+    throw error;
+  }
 }
 
 export async function getPropertyAmenities(propertyId: string) {
