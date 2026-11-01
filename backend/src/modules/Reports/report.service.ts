@@ -5,10 +5,11 @@ import {
   ListingReportReason,
 } from "../../generated/prisma/enums.js";
 
-
 const DAILY_REPORT_LIMIT = 10;
 
-const mapReportOutcome = (status: ReportStatus) => {
+const mapReportOutcome = (
+  status: ReportStatus,
+): "RECEIVED" | "UNDER_REVIEW" | "ACTION_TAKEN" | "NO_ACTION" => {
   switch (status) {
     case ReportStatus.PENDING:
       return "RECEIVED";
@@ -145,7 +146,12 @@ export const getMyReports = async (
       orderBy: {
         createdAt: "desc",
       },
-      include: {
+      select: {
+        id: true,
+        reason: true,
+        description: true,
+        status: true,
+        createdAt: true,
         listing: {
           select: {
             id: true,
@@ -154,18 +160,10 @@ export const getMyReports = async (
             property: {
               select: {
                 id: true,
-                ownerId: true,
                 title: true,
               },
             },
           },
-        },
-        moderationAction: {
-          select: {
-            actionType: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: "desc" },
         },
       },
     }),
@@ -176,7 +174,10 @@ export const getMyReports = async (
   ]);
 
   return {
-    data: reports,
+    data: reports.map(({ status, ...report }) => ({
+      ...report,
+      outcome: mapReportOutcome(status),
+    })),
     pagination: {
       page,
       limit,
@@ -210,6 +211,7 @@ export const getReportById = async (
             select: {
               id: true,
               ownerId: true,
+              title: true,
             },
           },
         },
@@ -246,12 +248,21 @@ export const getReportById = async (
   if (report.reporterId !== userId) {
     throw new AppError("You cannot access this report", 403);
   }
-
-  // Reporters must not receive internal moderation reasons.
-  const { moderationAction, ...publicReport } = report;
-
+  // Return only information intended for the reporter.
   return {
-    ...publicReport,
+    id: report.id,
+    reason: report.reason,
+    description: report.description,
+    createdAt: report.createdAt,
+    listing: {
+      id: report.listing.id,
+      listingType: report.listing.listingType,
+      price: report.listing.price,
+      property: {
+        id: report.listing.property.id,
+        title: report.listing.property.title,
+      },
+    },
     outcome: mapReportOutcome(report.status),
   };
 };
