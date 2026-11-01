@@ -40,6 +40,10 @@ export async function createListing(input: createListingInput) {
     throw new AppError("Property not found", 404);
   }
 
+  if (property.deletedAt) {
+    throw new AppError("This property is no longer available", 404);
+  }
+
   if (property.ownerId !== userId) {
     throw new AppError(
       "You are not authorized to create a listing for this property",
