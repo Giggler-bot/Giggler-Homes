@@ -6,7 +6,7 @@ import {
   removeAmenityFromProperty,
   updatePropertyAvailability,
 } from "./property.service.js";
-import { futimesSync } from "node:fs";
+
 
 export async function createPropertyController(req: Request, res: Response) {
   const property = await createProperty({
