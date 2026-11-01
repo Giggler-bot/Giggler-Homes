@@ -19,14 +19,13 @@ export const createListingSchema = z
         .default("GHS"),
       rentPeriod: z.enum(rentPeriods).optional(),
       negotiable: z.boolean().default(false),
-      isFeatured: z.boolean().default(false),
       expiresAt: z.coerce
         .date()
         .refine((date) => date > new Date(), {
           message: "Expiry date must be in the future.",
         })
         .optional(),
-    }),
+    }).strict(),
   })
   .superRefine((data, ctx) => {
     const { listingType, rentPeriod } = data.body;

@@ -15,7 +15,6 @@ type createListingInput = {
   currency: string;
   rentPeriod?: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   negotiable: boolean;
-  isFeatured: boolean;
   expiresAt?: Date;
 };
 
@@ -28,7 +27,6 @@ export async function createListing(input: createListingInput) {
     currency,
     rentPeriod,
     negotiable,
-    isFeatured,
     expiresAt,
   } = input;
 
@@ -61,7 +59,6 @@ export async function createListing(input: createListingInput) {
       currency,
       rentPeriod,
       negotiable,
-      isFeatured,
       expiresAt,
     },
   });
