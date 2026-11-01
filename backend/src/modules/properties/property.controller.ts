@@ -8,10 +8,10 @@ import {
 } from "./property.service.js";
 import { futimesSync } from "node:fs";
 
-export async function createPropertycontroller(req: Request, res: Response) {
+export async function createPropertyController(req: Request, res: Response) {
   const property = await createProperty({
-    ownerId: req.user?.id,
     ...req.body,
+     ownerId: req.user?.id,
   });
 
   res.status(201).json({
