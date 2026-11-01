@@ -18,8 +18,7 @@ export async function createPropertycontroller(req: Request, res: Response) {
     success: true,
     message: "Property created successfully",
     data: {
-      propertyId: req.params.propertyId,
-      authenticatedUser: req.user,
+      property,
     },
   });
 }
