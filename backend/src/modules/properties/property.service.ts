@@ -17,6 +17,20 @@ type CreatePropertyInput = {
   isFurnished?: boolean;
 };
 
+type UpdatePropertyInput = {
+  title?: string;
+  description?: string;
+  locationId?: string;
+  propertyTypeId?: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  toilets?: number;
+  parkingSpaces?: number;
+  squareMeters?: number | null;
+  yearBuilt?: number;
+  isFurnished?: boolean;
+};
+
 export async function createProperty(data: CreatePropertyInput) {
   const slug = generateSlug(data.title);
 
@@ -36,6 +50,69 @@ export async function createProperty(data: CreatePropertyInput) {
       yearBuilt: data.yearBuilt,
       isFurnished: data.isFurnished ?? false,
     },
+  });
+}
+
+export async function updateProperty(
+  propertyId: string,
+  data: UpdatePropertyInput,
+) {
+  const property = await prisma.property.findUnique({
+    where: {
+      id: propertyId,
+    },
+  });
+
+  if (!property) {
+    throw new AppError("Property not found", 404);
+  }
+
+  if (property.deletedAt) {
+    throw new AppError("This property has been deleted", 404);
+  }
+
+  if (data.locationId) {
+    const location = await prisma.location.findUnique({
+      where: {
+        id: data.locationId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!location) {
+      throw new AppError("Location not found", 404);
+    }
+  }
+
+  if (data.propertyTypeId) {
+    const propertyType = await prisma.propertyType.findUnique({
+      where: {
+        id: data.propertyTypeId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!propertyType) {
+      throw new AppError("Property type not found", 404);
+    }
+  }
+
+  const updatedData = {
+    ...data,
+    ...(data.title !== undefined && {
+      slug: generateSlug(data.title),
+    }),
+  };
+
+  return prisma.property.update({
+    where: {
+      id: propertyId,
+    },
+    data: updatedData,
   });
 }
 

@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import {
   assignAmenityToProperty,
   createProperty,
+  updateProperty,
   getPropertyAmenities,
   removeAmenityFromProperty,
   updatePropertyAvailability,
@@ -17,6 +18,24 @@ export async function createPropertyController(req: Request, res: Response) {
   res.status(201).json({
     success: true,
     message: "Property created successfully",
+    data: {
+      property,
+    },
+  });
+}
+
+export async function updatePropertyController(
+  req: Request<{ propertyId: string }>,
+  res: Response,
+) {
+  const property = await updateProperty(
+    req.params.propertyId,
+    req.body,
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Property updated successfully",
     data: {
       property,
     },

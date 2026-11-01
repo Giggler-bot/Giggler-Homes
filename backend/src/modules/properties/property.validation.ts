@@ -23,6 +23,35 @@ export const createPropertySchema = z.object({
 });
 
 
+export const updatePropertySchema = z.object({
+  params: z.object({
+    propertyId: z.uuid("Invalid property ID"),
+  }),
+
+  body: z.object({
+    title: z.string().trim().min(5).max(100).optional(),
+    description: z.string().trim().min(10).max(1000).optional(),
+    locationId: z.uuid("Invalid location ID").optional(),
+    propertyTypeId: z.uuid("Invalid property type ID").optional(),
+    bedrooms: z.number().int().min(0).optional(),
+    bathrooms: z.number().int().min(0).optional(),
+    toilets: z.number().int().min(0).optional(),
+    parkingSpaces: z.number().int().min(0).optional(),
+    squareMeters: z.number().positive().nullable().optional(),
+    yearBuilt: z
+      .number()
+      .int()
+      .min(1800)
+      .max(new Date().getFullYear())
+      .optional(),
+    isFurnished: z.boolean().optional(),
+  }).strict().refine(
+    (data) => Object.keys(data).length > 0,
+    { message: "At least one property field must be provided" },
+  ),
+});
+
+
 export const updatePropertyAvailabilitySchema = z.object({
   params: z.object({
     propertyId: z.uuid(),
