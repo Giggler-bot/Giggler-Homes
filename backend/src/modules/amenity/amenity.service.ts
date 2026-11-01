@@ -167,12 +167,39 @@ export async function reactivateAmenity(amenityId: string) {
     throw new AppError("Amenity is already active", 409);
   }
 
-  return prisma.amenity.update({
+  const existingAmenity = await prisma.amenity.findFirst({
     where: {
-      id: amenityId,
-    },
-    data: {
-      deletedAt: null,
+      id: {
+        not: amenityId,
+      },
+      name: {
+        equals: amenity.name,
+        mode: "insensitive",
+      },
     },
   });
+
+  if (existingAmenity) {
+    throw new AppError("Amenity name already exists", 409);
+  }
+
+  try {
+    return await prisma.amenity.update({
+      where: {
+        id: amenityId,
+      },
+      data: {
+        deletedAt: null,
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new AppError("Amenity name already exists", 409);
+    }
+
+    throw error;
+  }
 }
