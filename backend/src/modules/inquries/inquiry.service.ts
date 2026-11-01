@@ -16,6 +16,7 @@ export const createInquiry = async (
       property: {
         select: {
           ownerId: true,
+          deletedAt: true,
         },
       },
     },
@@ -23,6 +24,10 @@ export const createInquiry = async (
 
   if (!listing) {
     throw new AppError("Listing not found", 404);
+  }
+
+  if (listing.property.deletedAt) {
+    throw new AppError("This listing is no longer available", 404);
   }
 
   if (listing.status !== "ACTIVE") {
