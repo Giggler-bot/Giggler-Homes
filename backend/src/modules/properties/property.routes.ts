@@ -4,7 +4,7 @@ import { authenticate } from "../../middleware/authenticate.js";
 import { authorizeRoles } from "../../middleware/authorizeRoles.js";
 import { authorizepropertyOwner } from "../../middleware/authorizePropertyOwner.js";
 
-import { assignPropertyAmenityController, createPropertycontroller, getPropertyAmenitiesController, removePropertyAmenityController, updatePropertyAvailabilityController } from "./property.controller.js";
+import { assignPropertyAmenityController, createPropertyController, getPropertyAmenitiesController, removePropertyAmenityController, updatePropertyAvailabilityController } from "./property.controller.js";
 
 import { validateRequest } from "../../middleware/validateRequest.js";
 import { assignPropertyAmenitySchema, createPropertySchema, getPropertyAmenitiesSchema, removePropertyAmenitySchema, updatePropertyAvailabilitySchema } from "./property.validation.js";
@@ -19,7 +19,7 @@ propertyRouter.post(
   authenticate,
   authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
   validateRequest(createPropertySchema),
-  createPropertycontroller,
+  createPropertyController,
 );
 
 propertyRouter.patch(

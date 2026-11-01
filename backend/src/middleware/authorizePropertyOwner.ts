@@ -4,41 +4,49 @@ import { AppError } from "../common/errors/AppError.js";
 import { prisma } from "../lib/prisma.js";
 
 export function authorizepropertyOwner(): RequestHandler {
-    return async (req, res, next) => {
-        try {
-            if (!req.user){
-                throw new AppError("Authentication is required", 401);
-            }
-            const propertyId = req.params.propertyId as string;
+  return async (req, res, next) => {
+    try {
+      if (!req.user) {
+        throw new AppError("Authentication is required", 401);
+      }
+      const propertyId = req.params.propertyId as string;
 
-        if(!propertyId){
-            throw new AppError("Property ID is required", 400);
-        }
+      if (!propertyId) {
+        throw new AppError("Property ID is required", 400);
+      }
 
-        const property = await prisma.property.findUnique({
-            where: {
-                id: propertyId,
-            },
-            select: {
-                id: true,
-                ownerId: true,
-            },
-        });
+      const property = await prisma.property.findUnique({
+        where: {
+          id: propertyId,
+        },
+        select: {
+          id: true,
+          ownerId: true,
+          deletedAt: true,
+        },
+      });
 
-        if(!property){
-            throw new AppError("Property not found", 404);
-        }
+      if (!property) {
+        throw new AppError("Property not found", 404);
+      }
 
-        const isAdmin = req.user.role === "ADMIN";
-        const isOwner = req.user.id === property.ownerId;
+      if (property.deletedAt) {
+        throw new AppError("This property has been deleted", 404);
+      }
 
-        if(!isAdmin && !isOwner){
-            throw new AppError("You do not have permission to perform this action", 403);
-        }
+      const isAdmin = req.user.role === "ADMIN";
+      const isOwner = req.user.id === property.ownerId;
 
-        next();
-        } catch (error) {
-        next(error);
-    } 
+      if (!isAdmin && !isOwner) {
+        throw new AppError(
+          "You do not have permission to perform this action",
+          403,
+        );
+      }
+
+      next();
+    } catch (error) {
+      next(error);
     }
+  };
 }
