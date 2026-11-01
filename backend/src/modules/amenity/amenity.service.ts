@@ -1,6 +1,8 @@
 import { prisma } from "../../lib/prisma.js";
 import { AppError } from "../../common/errors/AppError.js";
 
+import { Prisma } from "../../generated/prisma/client.js";
+
 export async function createAmenity(data: {
   name: string;
   icon?: string;
@@ -16,8 +18,8 @@ export async function createAmenity(data: {
     where: {
       name: {
         equals: data.name,
-         mode: "insensitive",
-      }
+        mode: "insensitive",
+      },
     },
   });
 
@@ -94,48 +96,60 @@ export async function updateAmenity(
     throw new AppError("Amenity not found", 404);
   }
 
-  if (data.name && data.name !== amenity.name){
+  if (data.name && data.name.toLowerCase() !== amenity.name.toLowerCase()) {
     const existingAmenity = await prisma.amenity.findFirst({
-        where: {
-            name: data.name,
-            mode: "insensitive",
+      where: {
+        name: {
+          equals: data.name,
+          mode: "insensitive",
         },
+      },
     });
 
-    if(existingAmenity){
-        throw new AppError("Amenity name already exists", 409);
+    if (existingAmenity) {
+      throw new AppError("Amenity name already exists", 409);
     }
+  }
+
+  try {
+    return await prisma.amenity.update({
+      where: {
+        id,
+      },
+      data,
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new AppError("Amenity name already exists", 409);
+    }
+
+    throw error;
+  }
+}
+
+export async function deleteAmenity(id: string) {
+  const amenity = await prisma.amenity.findFirst({
+    where: {
+      id,
+      deletedAt: null,
+    },
+  });
+
+  if (!amenity) {
+    throw new AppError("Amenity not found", 404);
   }
 
   return prisma.amenity.update({
     where: {
-        id,
+      id,
     },
-    data,
+    data: {
+      deletedAt: new Date(),
+    },
   });
-}
-
-
-export async function deleteAmenity(id: string) {
-    const amenity = await prisma.amenity.findFirst({
-        where: {
-            id,
-            deletedAt: null,
-        },
-    });
-
-    if(!amenity) {
-        throw new AppError("Amenity not found", 404);
-    }
-
-    return prisma.amenity.update({
-        where: {
-            id,
-        },
-        data: {
-            deletedAt: new Date(),
-        },
-    });
 }
 
 export async function reactivateAmenity(amenityId: string) {
