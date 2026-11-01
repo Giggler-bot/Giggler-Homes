@@ -2,7 +2,7 @@ import { Router } from "express";
 
 import { authenticate } from "../../middleware/authenticate.js";
 import { authorizeRoles } from "../../middleware/authorizeRoles.js";
-import { authorizepropertyOwner } from "../../middleware/authorizePropertyOwner.js";
+import { authorizePropertyOwner } from "../../middleware/authorizePropertyOwner.js";
 
 import {
   assignPropertyAmenityController,
@@ -41,7 +41,7 @@ propertyRouter.patch(
   authenticate,
   authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
   validateRequest(updatePropertySchema),
-  authorizepropertyOwner(),
+  authorizePropertyOwner(),
   updatePropertyController,
 );
 
@@ -50,7 +50,7 @@ propertyRouter.patch(
   authenticate,
   authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
   validateRequest(updatePropertyAvailabilitySchema),
-  authorizepropertyOwner(),
+  authorizePropertyOwner(),
   updatePropertyAvailabilityController,
 );
 
@@ -59,7 +59,7 @@ propertyRouter.post(
   authenticate,
   authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
   validateRequest(assignPropertyAmenitySchema),
-  authorizepropertyOwner(),
+  authorizePropertyOwner(),
   assignPropertyAmenityController,
 );
 
@@ -74,7 +74,7 @@ propertyRouter.delete(
   authenticate,
   authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
   validateRequest(removePropertyAmenitySchema),
-  authorizepropertyOwner(),
+  authorizePropertyOwner(),
   removePropertyAmenityController,
 );
 

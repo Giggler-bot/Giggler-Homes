@@ -3,7 +3,7 @@ import { RequestHandler } from "express";
 import { AppError } from "../common/errors/AppError.js";
 import { prisma } from "../lib/prisma.js";
 
-export function authorizepropertyOwner(): RequestHandler {
+export function authorizePropertyOwner(): RequestHandler {
   return async (req, res, next) => {
     try {
       if (!req.user) {
