@@ -74,7 +74,7 @@ export async function createMedia(data: {
           },
         });
       }
-      
+
       return tx.media.create({
         data: {
           propertyId: data.propertyId,
@@ -114,11 +114,16 @@ export async function getPropertyMedia(propertyId: string) {
     },
     select: {
       id: true,
+      deletedAt: true,
     },
   });
 
   if (!property) {
     throw new AppError("Property not found", 404);
+  }
+
+  if (property.deletedAt) {
+    throw new AppError("This property has been deleted", 400);
   }
 
   const media = await prisma.media.findMany({
