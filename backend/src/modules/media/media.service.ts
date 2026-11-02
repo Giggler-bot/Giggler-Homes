@@ -60,6 +60,7 @@ export async function createMedia(data: {
         await tx.media.updateMany({
           where: {
             propertyId: data.propertyId,
+            type: mediaType,
             isPrimary: true,
             deletedAt: null,
           },
@@ -151,7 +152,6 @@ export async function getMediaById(mediaId: string) {
 
   return media;
 }
-
 export async function updateMedia(
   mediaId: string,
   data: {
@@ -176,6 +176,7 @@ export async function updateMedia(
       prisma.media.updateMany({
         where: {
           propertyId: media.propertyId,
+          type: media.type,
           id: {
             not: mediaId,
           },
