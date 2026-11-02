@@ -52,9 +52,9 @@ export async function createMedia(data: {
     throw new AppError("Failed to upload media", 500);
   }
 
-  const mediaType = getMediaType(uploadResult.resource_type);
-
   try {
+    const mediaType = getMediaType(uploadResult.resource_type);
+
     const media = await prisma.$transaction(async (tx) => {
       if (data.isPrimary === true) {
         await tx.media.updateMany({
@@ -97,7 +97,7 @@ export async function createMedia(data: {
       );
     }
 
-    throw new AppError("Failed to create media", 500);
+    throw error;
   }
 }
 
