@@ -41,12 +41,6 @@ export async function createMedia(data: {
   }
 
   let uploadResult;
-  console.log("FILE DEBUG:", {
-    originalname: data.file.originalname,
-    mimetype: data.file.mimetype,
-    size: data.file.size,
-    bufferSize: data.file.buffer.length,
-  });
 
   try {
     uploadResult = await uploadMedia(
