@@ -20,6 +20,8 @@ export const uploadMediaFile = multer({
 
     limits: {
         fileSize: 50 * 1024 * 1024, // 50 MB
+        files: 1,
+        fields: 5,
     },
 
     fileFilter: (_req, file, callback) => {

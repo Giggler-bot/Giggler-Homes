@@ -26,6 +26,7 @@ import {
   authorizeMediaUpdate,
 } from "./media.middleware.js";
 import { uploadMediaFile } from "../../middleware/upload.middleware.js";
+import { validateMediaFile } from "../../middleware/validateMediaFile.js";
 
 const mediaRouter = Router();
 
@@ -36,6 +37,7 @@ mediaRouter.post(
   uploadMediaFile.single("file"),
   validateRequest(createMediaSchema),
   authorizeMediaPropertyOwner(),
+  validateMediaFile,
   createMediaController,
 );
 

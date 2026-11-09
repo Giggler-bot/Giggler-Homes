@@ -20,12 +20,27 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
     });
     return;
   }
-
   if (error instanceof multer.MulterError) {
     if (error.code === "LIMIT_FILE_SIZE") {
       res.status(400).json({
         success: false,
-        message: "File size exceeds the 10 MB limit",
+        message: "File size exceeds the 50 MB limit",
+      });
+      return;
+    }
+
+    if (error.code === "LIMIT_FILE_COUNT") {
+      res.status(400).json({
+        success: false,
+        message: "Only one file can be uploaded at a time",
+      });
+      return;
+    }
+
+    if (error.code === "LIMIT_FIELD_COUNT") {
+      res.status(400).json({
+        success: false,
+        message: "Too many form fields",
       });
       return;
     }
@@ -33,8 +48,7 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
     if (error.code === "LIMIT_UNEXPECTED_FILE") {
       res.status(400).json({
         success: false,
-        message:
-          "Invalid file type. Allowed types are JPEG, PNG, WebP, and PDF",
+        message: "Unexpected file field",
       });
       return;
     }
