@@ -7,6 +7,7 @@ import {
   getMediaByIdSchema,
   getPropertyMediaSchema,
   updateMediaSchema,
+  restoreMediaSchema
 } from "./media.validation.js";
 import { authenticate } from "../../middleware/authenticate.js";
 import { authorizeRoles } from "../../middleware/authorizeRoles.js";
@@ -16,10 +17,12 @@ import {
   getMediaByIdController,
   getPropertyMediaController,
   updatemediaController,
+  restoreMediaController,
 } from "./media.controller.js";
 import {
   authorizeMediaDelete,
   authorizeMediaPropertyOwner,
+  authorizeMediaRestore,
   authorizeMediaUpdate,
 } from "./media.middleware.js";
 import { uploadMediaFile } from "../../middleware/upload.middleware.js";
@@ -64,6 +67,15 @@ mediaRouter.delete(
   validateRequest(deleteMediaSchema),
   authorizeMediaDelete(),
   deleteMediaController,
+);
+
+mediaRouter.patch(
+  "/:mediaId/restore",
+  authenticate,
+  authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
+  validateRequest(restoreMediaSchema),
+  authorizeMediaRestore(),
+  restoreMediaController,
 );
 
 export default mediaRouter;

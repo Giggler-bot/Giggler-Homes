@@ -46,3 +46,9 @@ export const deleteMediaSchema = z.object({
     mediaId: z.uuid(),
   }),
 });
+
+export const restoreMediaSchema = z.object({
+  params: z.object({
+    mediaId: z.uuid("Invalid media ID"),
+  }),
+});

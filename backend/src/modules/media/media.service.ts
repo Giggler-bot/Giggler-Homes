@@ -152,6 +152,7 @@ export async function getMediaById(mediaId: string) {
 
   return media;
 }
+
 export async function updateMedia(
   mediaId: string,
   data: {
@@ -232,4 +233,45 @@ export async function deleteMedia(mediaId: string) {
   });
 
   return deletedMedia;
+}
+
+export async function restoreMedia(mediaId: string) {
+  const media = await prisma.media.findUnique({
+    where: {
+      id: mediaId,
+    },
+    include: {
+      property: {
+        select: {
+          id: true,
+          deletedAt: true,
+        },
+      },
+    },
+  });
+
+  if (!media) {
+    throw new AppError("Media not found", 404);
+  }
+
+  if (!media.deletedAt) {
+    throw new AppError("Media is already active", 400);
+  }
+
+  if (media.property.deletedAt) {
+    throw new AppError(
+      "Cannot restore media belonging to a deleted property",
+      400,
+    );
+  }
+
+  return prisma.media.update({
+    where: {
+      id: mediaId,
+    },
+    data: {
+      deletedAt: null,
+      isPrimary: false,
+    },
+  });
 }

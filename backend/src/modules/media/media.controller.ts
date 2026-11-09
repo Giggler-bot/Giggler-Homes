@@ -7,6 +7,7 @@ import {
   getMediaById,
   getPropertyMedia,
   updateMedia,
+  restoreMedia,
 } from "./media.service.js";
 
 export async function createMediaController(req: Request, res: Response) {
@@ -78,6 +79,21 @@ export async function deleteMediaController(
   res.status(200).json({
     success: true,
     message: "Media deleted successfully",
+    data: {
+      media,
+    },
+  });
+}
+
+export async function restoreMediaController(
+  req: Request<{ mediaId: string }>,
+  res: Response,
+) {
+  const media = await restoreMedia(req.params.mediaId);
+
+  res.status(200).json({
+    success: true,
+    message: "Media restored successfully",
     data: {
       media,
     },

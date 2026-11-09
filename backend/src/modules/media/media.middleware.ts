@@ -127,3 +127,44 @@ export function authorizeMediaDelete(): RequestHandler<{ mediaId: string }> {
     }
   };
 }
+
+export function authorizeMediaRestore(): RequestHandler<{ mediaId: string }> {
+  return async (req, _res, next) => {
+    try {
+      if (!req.user) {
+        throw new AppError("Authentication required", 401);
+      }
+
+      if (req.user.role === "ADMIN") {
+        return next();
+      }
+
+      const media = await prisma.media.findUnique({
+        where: {
+          id: req.params.mediaId,
+        },
+        select: {
+          property: {
+            select: {
+              ownerId: true,
+            },
+          },
+        },
+      });
+
+      if (!media) {
+        throw new AppError("Media not found", 404);
+      }
+
+      if (media.property.ownerId !== req.user.id) {
+        throw new AppError(
+          "You are not authorized to perform this action",
+          403,
+        );
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+};
