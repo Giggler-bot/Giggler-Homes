@@ -144,10 +144,22 @@ export async function getMediaById(mediaId: string) {
     where: {
       id: mediaId,
     },
+    include: {
+      property: {
+        select: {
+          id: true,
+          deletedAt: true,
+        }
+      }
+    }
   });
 
   if (!media || media.deletedAt) {
     throw new AppError("Media not found", 404);
+  }
+
+  if (media.property.deletedAt) {
+    throw new AppError("This property has been deleted", 400);
   }
 
   return media;
