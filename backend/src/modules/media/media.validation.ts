@@ -1,34 +1,44 @@
+
 import { z } from "zod";
 
 export const createMediaSchema = z.object({
-  body: z.object({
-    propertyId: z.uuid(),
-    title: z.string().trim().min(1).max(255).optional(),
-    altText: z.string().trim().min(1).max(255).optional(),
-    sortOrder: z.coerce.number().int().min(0).default(0),
-    isPrimary: z
-      .enum(["true", "false"])
-      .transform((value) => value === "true")
-      .default(false),
-  }),
+  body: z
+    .object({
+      propertyId: z.uuid("Invalid property ID"),
+      title: z.string().trim().min(1).max(255).optional(),
+      altText: z.string().trim().min(1).max(255).optional(),
+      sortOrder: z.preprocess(
+        (value) => (value === "" ? Number.NaN : value),
+        z.coerce.number().int().min(0).default(0),
+      ),
+      isPrimary: z
+        .enum(["true", "false"])
+        .transform((value) => value === "true")
+        .default(false),
+    })
+    .strict(),
 });
 
 export const getPropertyMediaSchema = z.object({
-  params: z.object({
-    propertyId: z.string().uuid(),
-  }),
+  params: z
+    .object({
+      propertyId: z.uuid("Invalid property ID"),
+    })
+    .strict(),
 });
 
 export const getMediaByIdSchema = z.object({
-  params: z.object({
-    mediaId: z.string().uuid(),
-  }),
+  params: z
+    .object({
+      mediaId: z.uuid("Invalid media ID"),
+    })
+    .strict(),
 });
 
 export const updateMediaSchema = z.object({
   params: z
     .object({
-      mediaId: z.uuid(),
+      mediaId: z.uuid("Invalid media ID"),
     })
     .strict(),
 
@@ -46,13 +56,17 @@ export const updateMediaSchema = z.object({
 });
 
 export const deleteMediaSchema = z.object({
-  params: z.object({
-    mediaId: z.uuid(),
-  }),
+  params: z
+    .object({
+      mediaId: z.uuid("Invalid media ID"),
+    })
+    .strict(),
 });
 
 export const restoreMediaSchema = z.object({
-  params: z.object({
-    mediaId: z.uuid("Invalid media ID"),
-  }),
+  params: z
+    .object({
+      mediaId: z.uuid("Invalid media ID"),
+    })
+    .strict(),
 });

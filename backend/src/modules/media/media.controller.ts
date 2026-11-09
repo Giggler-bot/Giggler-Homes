@@ -57,7 +57,7 @@ export async function getMediaByIdController(
   });
 }
 
-export async function updatemediaController(
+export async function updateMediaController(
   req: Request<{ mediaId: string }>,
   res: Response,
 ) {

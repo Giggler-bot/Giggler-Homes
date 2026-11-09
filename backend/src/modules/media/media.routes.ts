@@ -16,7 +16,7 @@ import {
   deleteMediaController,
   getMediaByIdController,
   getPropertyMediaController,
-  updatemediaController,
+ updateMediaController,
   restoreMediaController,
 } from "./media.controller.js";
 import {
@@ -59,7 +59,7 @@ mediaRouter.patch(
   authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
   validateRequest(updateMediaSchema),
   authorizeMediaUpdate(),
-  updatemediaController,
+ updateMediaController,
 );
 
 mediaRouter.delete(
