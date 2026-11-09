@@ -26,16 +26,20 @@ export const getMediaByIdSchema = z.object({
 });
 
 export const updateMediaSchema = z.object({
-  params: z.object({
-    mediaId: z.uuid(),
-  }),
+  params: z
+    .object({
+      mediaId: z.uuid(),
+    })
+    .strict(),
+
   body: z
     .object({
-      title: z.string().trim().min(1).max(255).optional(),
-      altText: z.string().trim().min(1).max(255).optional(),
+      title: z.string().trim().min(1).max(255).nullable().optional(),
+      altText: z.string().trim().min(1).max(255).nullable().optional(),
       sortOrder: z.number().int().min(0).optional(),
       isPrimary: z.boolean().optional(),
     })
+    .strict()
     .refine((data) => Object.keys(data).length > 0, {
       message: "At least one field must be provided for update",
     }),
