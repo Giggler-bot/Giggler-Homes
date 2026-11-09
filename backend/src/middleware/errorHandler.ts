@@ -10,16 +10,22 @@ import { Prisma } from "../generated/prisma/client.js";
 import multer from "multer";
 
 export const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
+  if (res.headersSent) {
+    return next(error);
+  }
+
   if (error instanceof ZodError) {
     res.status(400).json({
       success: false,
       message: "Validation error",
       errors: error.issues.map((issue) => ({
+        field: issue.path.join("."),
         message: issue.message,
       })),
     });
     return;
   }
+  
   if (error instanceof multer.MulterError) {
     if (error.code === "LIMIT_FILE_SIZE") {
       res.status(400).json({

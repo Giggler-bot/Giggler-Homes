@@ -18,10 +18,10 @@ import listingRouter from "./modules/listings/listing.routes.js";
 import mediaRouter from "./modules/media/media.routes.js";
 import amenityRouter from "./modules/amenity/amenity.routes.js";
 import favoriteRouter from "./modules/favorites/favorite.routes.js";
-import inquiryRouter from "./modules/inquries/inquiry.routes.js";
+import inquiryRouter from "./modules/inquiries/inquiry.routes.js";
 import verificationRouter from "./modules/verification/verification.routes.js";
-import reportRouter from "./modules/Reports/report.routes.js";
-import adminReportRouter from "./modules/Reports/report.admin.routes.js";
+import reportRouter from "./modules/reports/report.routes.js";
+import adminReportRouter from "./modules/reports/report.admin.routes.js";
 
 const app = express();
 
