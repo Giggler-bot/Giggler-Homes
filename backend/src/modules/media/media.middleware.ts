@@ -1,9 +1,10 @@
-import { RequestHandler } from "express";
+
+import type { RequestHandler } from "express";
 import { AppError } from "../../common/errors/AppError.js";
 import { prisma } from "../../lib/prisma.js";
 
 export function authorizeMediaPropertyOwner(): RequestHandler {
-  return async (req, res, next) => {
+  return async (req, _res, next) => {
     try {
       const user = req.user;
 
@@ -21,11 +22,16 @@ export function authorizeMediaPropertyOwner(): RequestHandler {
         },
         select: {
           ownerId: true,
+          deletedAt: true,
         },
       });
 
       if (!property) {
         throw new AppError("Property not found", 404);
+      }
+
+      if (property.deletedAt) {
+        throw new AppError("This property has been deleted", 400);
       }
 
       if (property.ownerId !== user.id) {
@@ -34,6 +40,7 @@ export function authorizeMediaPropertyOwner(): RequestHandler {
           403,
         );
       }
+
       next();
     } catch (error) {
       next(error);
@@ -41,130 +48,65 @@ export function authorizeMediaPropertyOwner(): RequestHandler {
   };
 }
 
-export function authorizeMediaUpdate(): RequestHandler<{ mediaId: string }> {
-  return async (req, res, next) => {
-    try {
-      const user = req.user;
-
-      if (!user) {
-        throw new AppError("User not authenticated", 401);
-      }
-
-      if (user.role === "ADMIN") {
-        return next();
-      }
-
-      const media = await prisma.media.findUnique({
-        where: {
-          id: req.params.mediaId,
-        },
+async function authorizeMediaOwnership(
+  mediaId: string,
+  userId: string,
+) {
+  const media = await prisma.media.findUnique({
+    where: {
+      id: mediaId,
+    },
+    select: {
+      property: {
         select: {
-          property: {
-            select: {
-              ownerId: true,
-            },
-          },
+          ownerId: true,
         },
-      });
+      },
+    },
+  });
 
-      if (!media) {
-        throw new AppError("Media not found", 404);
-      }
+  if (!media) {
+    throw new AppError("Media not found", 404);
+  }
 
-      if (media.property.ownerId !== user.id) {
-        throw new AppError(
-          "You are not authorized to perform this action",
-          403,
-        );
-      }
-      next();
-    } catch (error) {
-      next(error);
-    }
-  };
+  if (media.property.ownerId !== userId) {
+    throw new AppError(
+      "You are not authorized to perform this action",
+      403,
+    );
+  }
 }
 
-export function authorizeMediaDelete(): RequestHandler<{ mediaId: string }> {
-  return async (req, res, next) => {
-    try {
-      const user = req.user;
-
-      if (!user) {
-        throw new AppError("User not authenticated", 401);
-      }
-
-      if (user.role === "ADMIN") {
-        return next();
-      }
-
-      const media = await prisma.media.findUnique({
-        where: {
-          id: req.params.mediaId,
-        },
-        select: {
-          property: {
-            select: {
-              ownerId: true,
-            },
-          },
-        },
-      });
-
-      if (!media) {
-        throw new AppError("Media not found", 404);
-      }
-
-      if (media.property.ownerId !== user.id) {
-        throw new AppError(
-          "You are not authorized to perform this action",
-          403,
-        );
-      }
-
-      next();
-    } catch (error) {
-      next(error);
-    }
-  };
-}
-
-export function authorizeMediaRestore(): RequestHandler<{ mediaId: string }> {
+function createMediaOwnershipMiddleware(): RequestHandler<{
+  mediaId: string;
+}> {
   return async (req, _res, next) => {
     try {
       if (!req.user) {
-        throw new AppError("Authentication required", 401);
+        throw new AppError("User not authenticated", 401);
       }
 
       if (req.user.role === "ADMIN") {
         return next();
       }
 
-      const media = await prisma.media.findUnique({
-        where: {
-          id: req.params.mediaId,
-        },
-        select: {
-          property: {
-            select: {
-              ownerId: true,
-            },
-          },
-        },
-      });
+      await authorizeMediaOwnership(req.params.mediaId, req.user.id);
 
-      if (!media) {
-        throw new AppError("Media not found", 404);
-      }
-
-      if (media.property.ownerId !== req.user.id) {
-        throw new AppError(
-          "You are not authorized to perform this action",
-          403,
-        );
-      }
       next();
     } catch (error) {
       next(error);
     }
   };
-};
+}
+
+export function authorizeMediaUpdate() {
+  return createMediaOwnershipMiddleware();
+}
+
+export function authorizeMediaDelete() {
+  return createMediaOwnershipMiddleware();
+}
+
+export function authorizeMediaRestore() {
+  return createMediaOwnershipMiddleware();
+}
