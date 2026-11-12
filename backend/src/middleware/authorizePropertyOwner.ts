@@ -1,6 +1,7 @@
 import { RequestHandler } from "express";
 
 import { AppError } from "../common/errors/AppError.js";
+import { canManageProperty } from "../common/authorization/property.js";
 import { prisma } from "../lib/prisma.js";
 
 export function authorizePropertyOwner(): RequestHandler {
@@ -34,16 +35,14 @@ export function authorizePropertyOwner(): RequestHandler {
         throw new AppError("This property has been deleted", 404);
       }
 
-      const isAdmin = req.user.role === "ADMIN";
-      const isOwner = req.user.id === property.ownerId;
-
-      if (!isAdmin && !isOwner) {
+      if (!canManageProperty(req.user, property)) {
         throw new AppError(
-          "You do not have permission to perform this action",
+          "You are not authorized to manage this property",
           403,
         );
       }
 
+      
       next();
     } catch (error) {
       next(error);
