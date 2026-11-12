@@ -126,7 +126,7 @@ export const getSentInquiries = async (
       skip,
       take: limit,
       orderBy: {
-        createdAt: "asc",
+        createdAt: "desc",
       },
       include: {
         listing: {
@@ -292,13 +292,24 @@ export const respondToInquiry = async (
     throw new AppError("Only opened inquiries can be marked as responded", 409);
   }
 
-  return prisma.inquiry.update({
+  const result = await prisma.inquiry.updateMany({
     where: {
       id: inquiryId,
+      status: InquiryStatus.OPEN,
     },
     data: {
       status: InquiryStatus.RESPONDED,
       respondedAt: new Date(),
+    },
+  });
+
+  if (result.count === 0) {
+    throw new AppError("Inquiry is no longer open", 409);
+  }
+
+  return prisma.inquiry.findUnique({
+    where: {
+      id: inquiryId,
     },
   });
 };
@@ -326,13 +337,24 @@ export const closeInquiry = async (
     throw new AppError("Inquiry is already closed", 409);
   }
 
-  return prisma.inquiry.update({
+  const result = await prisma.inquiry.updateMany({
     where: {
       id: inquiryId,
+      status: {
+        in: [InquiryStatus.OPEN, InquiryStatus.RESPONDED],
+      },
     },
     data: {
       status: InquiryStatus.CLOSED,
       closedAt: new Date(),
     },
+  });
+
+  if (result.count === 0) {
+    throw new AppError("Inquiry is already closed", 409);
+  }
+
+  return prisma.inquiry.findUnique({
+    where: { id: inquiryId },
   });
 };
