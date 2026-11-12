@@ -37,11 +37,11 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.10",
     "@types/multer": "^2.2.0",
-    "@types/node": "^26.6.1",
+    "@types/node": "^26.6.6",
     "@types/pg": "^8.20.3",
     "@types/streamifier": "^0.1.2",
     "prisma": "^7.9.1",
-    "tsx": "^4.23.1",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
 }
