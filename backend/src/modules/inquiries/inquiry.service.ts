@@ -26,7 +26,7 @@ export const createInquiry = async (
     throw new AppError("Listing not found", 404);
   }
 
-  if (listing.property.deletedAt) {
+  if (listing.deletedAt || listing.property.deletedAt) {
     throw new AppError("This listing is no longer available", 404);
   }
 
