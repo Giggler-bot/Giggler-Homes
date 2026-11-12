@@ -295,7 +295,7 @@ model BusinessVerification {
 
 model VerificationDocument {
   id         String                   @id @default(cuid())
-  storageKey String
+  storageKey String                   @unique
   fileUrl    String?
   docType    VerificationDocumentType
   uploadedAt DateTime                 @default(now())
