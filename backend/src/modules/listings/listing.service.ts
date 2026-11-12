@@ -100,6 +100,8 @@ export async function getActiveListings(filters: GetActiveListingsFilters) {
   const skip = (page - 1) * limit;
 
   const propertyFilters: Prisma.PropertyWhereInput = {
+    deletedAt: null,
+
     ...(region && {
       location: {
         region,
@@ -126,13 +128,10 @@ export async function getActiveListings(filters: GetActiveListingsFilters) {
   const where: Prisma.ListingWhereInput = {
     status: "ACTIVE",
     deletedAt: null,
+    property: propertyFilters,
 
     ...(listingType && {
       listingType,
-    }),
-
-    ...(Object.keys(propertyFilters).length > 0 && {
-      property: propertyFilters,
     }),
 
     ...(minPrice !== undefined || maxPrice !== undefined
@@ -200,6 +199,9 @@ export async function getActiveListingById(listingId: string) {
       id: listingId,
       status: "ACTIVE",
       deletedAt: null,
+      property: {
+        deletedAt: null,
+      }
     },
     include: {
       property: {
