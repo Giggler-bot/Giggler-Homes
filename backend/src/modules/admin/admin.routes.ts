@@ -21,6 +21,7 @@ import {
   getPendingOwnershipVerificationsController,
   getPendingBusinessVerificationsController,
   getAdminOwnershipVerificationController,
+  getAdminBusinessVerificationController,
 } from "../verification/verification.controller.js";
 
 import { getAdminDashboard } from "./admin.controller.js";
@@ -119,6 +120,12 @@ adminRouter.patch(
   "/verifications/business/:verificationId/reject",
   validateRequest(rejectVerificationSchema),
   rejectBusinessVerificationController,
+);
+
+adminRouter.get(
+  "/verifications/business/:verificationId",
+  validateRequest(verificationIdSchema),
+  getAdminBusinessVerificationController,
 );
 
 export default adminRouter;

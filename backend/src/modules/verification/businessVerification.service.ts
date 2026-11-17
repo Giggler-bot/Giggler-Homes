@@ -270,3 +270,47 @@ export const getPendingBusinessVerifications = async (
     },
   };
 };
+
+
+export const getAdminBusinessVerification = async (
+  verificationId: string,
+) => {
+  const verification = await prisma.businessVerification.findUnique({
+    where: {
+      id: verificationId,
+    },
+    include: {
+      owner: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          role: true,
+        },
+      },
+      documents: {
+        select: {
+          id: true,
+          docType: true,
+          format: true,
+          uploadedAt: true,
+        },
+      },
+      reviewer: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+    },
+  });
+
+  if (!verification) {
+    throw new AppError("Business verification not found", 404);
+  }
+
+  return verification;
+};

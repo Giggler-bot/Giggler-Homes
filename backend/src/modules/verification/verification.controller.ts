@@ -306,3 +306,20 @@ export const getPendingBusinessVerificationsController = async (
     pagination: result.pagination,
   });
 };
+
+
+export const getAdminBusinessVerificationController = async (
+  req: Request<{ verificationId: string }>,
+  res: Response,
+) => {
+  const verification =
+    await businessVerification.getAdminBusinessVerification(
+      req.params.verificationId,
+    );
+
+  return res.status(200).json({
+    success: true,
+    message: "Business verification retrieved successfully",
+    data: verification,
+  });
+};
