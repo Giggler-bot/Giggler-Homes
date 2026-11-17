@@ -7,6 +7,7 @@ import { validateRequest } from "../../middleware/validateRequest.js";
 import {
   verificationIdSchema,
   rejectVerificationSchema,
+   verificationQueuePaginationSchema,
 } from "../verification/verification.validation.js";
 
 import {
@@ -45,7 +46,10 @@ adminRouter.get("/dashboard", getAdminDashboard());
 // ==========================================
 
 // Get pending user verifications
-adminRouter.get("/verifications/users", getPendingUserVerificationsController);
+adminRouter.get(
+    "/verifications/users", 
+    validateRequest(verificationQueuePaginationSchema),
+    getPendingUserVerificationsController);
 
 // Get individual user verification details
 adminRouter.get(
@@ -75,6 +79,7 @@ adminRouter.patch(
 // Get pending ownership verification
 adminRouter.get(
   "/verifications/ownership",
+   validateRequest(verificationQueuePaginationSchema),
   getPendingOwnershipVerificationsController,
 );
 
@@ -105,6 +110,7 @@ adminRouter.get(
 // Get pending business verification
 adminRouter.get(
   "/verifications/business",
+   validateRequest(verificationQueuePaginationSchema),
   getPendingBusinessVerificationsController,
 );
 

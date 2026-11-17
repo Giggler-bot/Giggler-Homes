@@ -91,3 +91,10 @@ export const getVerificationDocumentSchema = z.object({
     documentId: z.cuid(),
   })
 })
+
+export const verificationQueuePaginationSchema = z.object({
+  query: z.object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+  }),
+});

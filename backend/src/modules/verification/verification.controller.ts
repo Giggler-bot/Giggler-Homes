@@ -38,12 +38,17 @@ export const getUserVerificationController = async (
 
 export const getPendingUserVerificationsController = async (
   req: Request,
-  res: Response
+  res: Response,
 ) => {
-  const page = Number(req.query.page) || 1;
-  const limit = Number(req.query.limit) || 20;
+  const { page, limit } = req.query as unknown as {
+    page: number;
+    limit: number;
+  };
 
-  const result = await userVerification.getPendingUserVerifications(page, limit);
+  const result = await userVerification.getPendingUserVerifications(
+    page,
+    limit,
+  );
 
   res.status(200).json({
     success: true,
@@ -85,7 +90,6 @@ export const rejectUserVerificationController = async (
     data: verification,
   });
 };
-
 
 export const getAdminUserVerificationController = async (
   req: Request<{ verificationId: string }>,
@@ -175,19 +179,19 @@ export const rejectOwnershipVerificationController = async (
   });
 };
 
-
 export const getPendingOwnershipVerificationsController = async (
   req: Request,
   res: Response,
 ) => {
-  const page = Number(req.query.page) || 1;
-  const limit = Number(req.query.limit) || 20;
+  const { page, limit } = req.query as unknown as {
+    page: number;
+    limit: number;
+  };
 
-  const result =
-    await ownershipVerification.getPendingOwnershipVerifications(
-      page,
-      limit,
-    );
+  const result = await ownershipVerification.getPendingOwnershipVerifications(
+    page,
+    limit,
+  );
 
   return res.status(200).json({
     success: true,
@@ -196,7 +200,6 @@ export const getPendingOwnershipVerificationsController = async (
     pagination: result.pagination,
   });
 };
-
 
 export const getAdminOwnershipVerificationController = async (
   req: Request<{ verificationId: string }>,
@@ -213,7 +216,6 @@ export const getAdminOwnershipVerificationController = async (
     data: verification,
   });
 };
-
 
 // Business Verification Controllers
 
@@ -267,7 +269,6 @@ export const approveBusinessVerificationController = async (
   });
 };
 
-
 export const rejectBusinessVerificationController = async (
   req: Request<{ verificationId: string }>,
   res: Response,
@@ -290,14 +291,14 @@ export const getPendingBusinessVerificationsController = async (
   req: Request,
   res: Response,
 ) => {
-  const page = Number(req.query.page) || 1;
-  const limit = Number(req.query.limit) || 20;
-
-  const result =
-    await businessVerification.getPendingBusinessVerifications(
-      page,
-      limit,
-    );
+  const { page, limit } = req.query as unknown as {
+    page: number;
+    limit: number;
+  };
+  const result = await businessVerification.getPendingBusinessVerifications(
+    page,
+    limit,
+  );
 
   return res.status(200).json({
     success: true,
@@ -307,15 +308,13 @@ export const getPendingBusinessVerificationsController = async (
   });
 };
 
-
 export const getAdminBusinessVerificationController = async (
   req: Request<{ verificationId: string }>,
   res: Response,
 ) => {
-  const verification =
-    await businessVerification.getAdminBusinessVerification(
-      req.params.verificationId,
-    );
+  const verification = await businessVerification.getAdminBusinessVerification(
+    req.params.verificationId,
+  );
 
   return res.status(200).json({
     success: true,
