@@ -208,3 +208,65 @@ export const rejectBusinessVerification = async (
     where: { id: verificationId },
   });
 };
+
+
+export const getPendingBusinessVerifications = async (
+  page: number,
+  limit: number,
+) => {
+  const skip = (page - 1) * limit;
+
+  const [verifications, total] = await prisma.$transaction([
+    prisma.businessVerification.findMany({
+      where: {
+        status: VerificationStatus.PENDING,
+      },
+      select: {
+        id: true,
+        ownerId: true,
+        businessType: true,
+        businessName: true,
+        registrationNumber: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        owner: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            role: true,
+          },
+        },
+        documents: {
+          select: {
+            id: true,
+            docType: true,
+            uploadedAt: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+      skip,
+      take: limit,
+    }),
+    prisma.businessVerification.count({
+      where: {
+        status: VerificationStatus.PENDING,
+      },
+    }),
+  ]);
+
+  return {
+    verifications,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+};

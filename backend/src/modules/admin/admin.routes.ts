@@ -19,6 +19,7 @@ import {
   rejectBusinessVerificationController,
   getPendingUserVerificationsController,
   getPendingOwnershipVerificationsController,
+  getPendingBusinessVerificationsController,
 } from "../verification/verification.controller.js";
 
 import { getAdminDashboard } from "./admin.controller.js";
@@ -69,7 +70,7 @@ adminRouter.patch(
 // Property Ownership Verification Management
 // ==========================================
 
-// Get pending ownershipt verification
+// Get pending ownership verification
 adminRouter.get(
   "/verifications/ownership",
   getPendingOwnershipVerificationsController,
@@ -92,6 +93,12 @@ adminRouter.patch(
 // ==========================================
 // Business Verification Management
 // ==========================================
+
+// Get pending business verification
+adminRouter.get(
+  "/verifications/business",
+  getPendingBusinessVerificationsController,
+);
 
 // Approve business verification
 adminRouter.patch(

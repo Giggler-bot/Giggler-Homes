@@ -86,6 +86,25 @@ export const rejectUserVerificationController = async (
   });
 };
 
+
+export const getAdminUserVerificationController = async (
+  req: Request<{ verificationId: string }>,
+  res: Response,
+) => {
+  const verification = await userVerification.getAdminUserVerification(
+    req.params.verificationId,
+    req.user!.id,
+    req.ip ?? null,
+    req.get("user-agent") ?? null,
+  );
+
+  return res.status(200).json({
+    success: true,
+    message: "User verification retrieved successfully",
+    data: verification,
+  });
+};
+
 // Ownership Verification Controllers
 
 export const createOwnershipVerificationController = async (
@@ -153,6 +172,28 @@ export const rejectOwnershipVerificationController = async (
   return res.status(200).json({
     success: true,
     data: verification,
+  });
+};
+
+
+export const getPendingOwnershipVerificationsController = async (
+  req: Request,
+  res: Response,
+) => {
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 20;
+
+  const result =
+    await ownershipVerification.getPendingOwnershipVerifications(
+      page,
+      limit,
+    );
+
+  return res.status(200).json({
+    success: true,
+    message: "Pending ownership verifications retrieved successfully",
+    data: result.verifications,
+    pagination: result.pagination,
   });
 };
 
@@ -227,26 +268,7 @@ export const rejectBusinessVerificationController = async (
   });
 };
 
-export const getAdminUserVerificationController = async (
-  req: Request<{ verificationId: string }>,
-  res: Response,
-) => {
-  const verification = await userVerification.getAdminUserVerification(
-    req.params.verificationId,
-    req.user!.id,
-    req.ip ?? null,
-    req.get("user-agent") ?? null,
-  );
-
-  return res.status(200).json({
-    success: true,
-    message: "User verification retrieved successfully",
-    data: verification,
-  });
-};
-
-
-export const getPendingOwnershipVerificationsController = async (
+export const getPendingBusinessVerificationsController = async (
   req: Request,
   res: Response,
 ) => {
@@ -254,14 +276,14 @@ export const getPendingOwnershipVerificationsController = async (
   const limit = Number(req.query.limit) || 20;
 
   const result =
-    await ownershipVerification.getPendingOwnershipVerifications(
+    await businessVerification.getPendingBusinessVerifications(
       page,
       limit,
     );
 
   return res.status(200).json({
     success: true,
-    message: "Pending ownership verifications retrieved successfully",
+    message: "Pending business verifications retrieved successfully",
     data: result.verifications,
     pagination: result.pagination,
   });
