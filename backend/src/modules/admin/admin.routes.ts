@@ -20,6 +20,7 @@ import {
   getPendingUserVerificationsController,
   getPendingOwnershipVerificationsController,
   getPendingBusinessVerificationsController,
+  getAdminOwnershipVerificationController,
 } from "../verification/verification.controller.js";
 
 import { getAdminDashboard } from "./admin.controller.js";
@@ -88,6 +89,12 @@ adminRouter.patch(
   "/verifications/ownership/:verificationId/reject",
   validateRequest(rejectVerificationSchema),
   rejectOwnershipVerificationController,
+);
+
+adminRouter.get(
+  "/verifications/ownership/:verificationId",
+  validateRequest(verificationIdSchema),
+  getAdminOwnershipVerificationController,
 );
 
 // ==========================================

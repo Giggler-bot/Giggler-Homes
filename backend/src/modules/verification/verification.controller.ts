@@ -197,6 +197,24 @@ export const getPendingOwnershipVerificationsController = async (
   });
 };
 
+
+export const getAdminOwnershipVerificationController = async (
+  req: Request<{ verificationId: string }>,
+  res: Response,
+) => {
+  const verification =
+    await ownershipVerification.getAdminOwnershipVerification(
+      req.params.verificationId,
+    );
+
+  return res.status(200).json({
+    success: true,
+    message: "Ownership verification retrieved successfully",
+    data: verification,
+  });
+};
+
+
 // Business Verification Controllers
 
 export const createBusinessVerificationController = async (
