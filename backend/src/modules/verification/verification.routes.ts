@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authenticate } from "../../middleware/authenticate.js";
 import { validateRequest } from "../../middleware/validateRequest.js";
+import { validateVerificationFile } from "../../middleware/validateVerificationFile.js";
 import {
   createBusinessVerificationSchema,
   createOwnershipVerificationSchema,
@@ -76,6 +77,7 @@ verificationRouter.post(
   "/user/:verificationId/documents",
   verificationUpload.single("file"),
   validateRequest(verificationDocumentUploadSchema),
+  validateVerificationFile,
   uploadUserVerificationDocumentController,
 );
 
@@ -84,6 +86,7 @@ verificationRouter.post(
   "/ownership/:verificationId/documents",
   verificationUpload.single("file"),
   validateRequest(verificationDocumentUploadSchema),
+  validateVerificationFile,
   uploadOwnershipVerificationDocumentController,
 );
 
@@ -91,6 +94,7 @@ verificationRouter.post(
   "/business/:verificationId/documents",
   verificationUpload.single("file"),
   validateRequest(verificationDocumentUploadSchema),
+  validateVerificationFile,
   uploadBusinessVerificationDocumentController,
 );
 

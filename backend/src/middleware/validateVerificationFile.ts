@@ -1,0 +1,50 @@
+
+import type { Request, Response, NextFunction } from "express";
+import { AppError } from "../common/errors/AppError.js";
+
+const fileSignatures = {
+  "image/jpeg": (buffer: Buffer) =>
+    buffer.length >= 3 &&
+    buffer[0] === 0xff &&
+    buffer[1] === 0xd8 &&
+    buffer[2] === 0xff,
+
+  "image/png": (buffer: Buffer) =>
+    buffer.length >= 8 &&
+    buffer.subarray(0, 8).equals(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    ),
+
+  "image/webp": (buffer: Buffer) =>
+    buffer.length >= 12 &&
+    buffer.toString("ascii", 0, 4) === "RIFF" &&
+    buffer.toString("ascii", 8, 12) === "WEBP",
+
+  "application/pdf": (buffer: Buffer) =>
+    buffer.length >= 5 &&
+    buffer.subarray(0, 5).toString("ascii") === "%PDF-",
+};
+
+export const validateVerificationFile = (
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): void => {
+  if (!req.file) {
+    return next();
+  }
+
+  const validator =
+    fileSignatures[req.file.mimetype as keyof typeof fileSignatures];
+
+  if (!validator || !validator(req.file.buffer)) {
+    return next(
+      new AppError(
+        "Uploaded file content does not match its declared file type",
+        400,
+      ),
+    );
+  }
+
+  next();
+};
