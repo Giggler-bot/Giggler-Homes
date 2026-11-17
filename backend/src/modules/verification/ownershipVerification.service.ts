@@ -208,3 +208,70 @@ export const rejectOwnershipVerification = async (
     where: { id: verificationId },
   });
 };
+
+
+export const getPendingOwnershipVerifications = async (
+  page: number,
+  limit: number,
+) => {
+  const skip = (page - 1) * limit;
+
+  const [verifications, total] = await prisma.$transaction([
+    prisma.ownershipVerification.findMany({
+      where: {
+        status: VerificationStatus.PENDING,
+      },
+      select: {
+        id: true,
+        propertyId: true,
+        submittedById: true,
+        proofType: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        property: {
+          select: {
+            id: true,
+            title: true,
+            ownerId: true,
+          },
+        },
+        submittedBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        documents: {
+          select: {
+            id: true,
+            docType: true,
+            uploadedAt: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+      skip,
+      take: limit,
+    }),
+    prisma.ownershipVerification.count({
+      where: {
+        status: VerificationStatus.PENDING,
+      },
+    }),
+  ]);
+
+  return {
+    verifications,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+};

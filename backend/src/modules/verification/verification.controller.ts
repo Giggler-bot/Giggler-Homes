@@ -244,3 +244,25 @@ export const getAdminUserVerificationController = async (
     data: verification,
   });
 };
+
+
+export const getPendingOwnershipVerificationsController = async (
+  req: Request,
+  res: Response,
+) => {
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 20;
+
+  const result =
+    await ownershipVerification.getPendingOwnershipVerifications(
+      page,
+      limit,
+    );
+
+  return res.status(200).json({
+    success: true,
+    message: "Pending ownership verifications retrieved successfully",
+    data: result.verifications,
+    pagination: result.pagination,
+  });
+};
