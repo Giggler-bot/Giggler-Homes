@@ -17,11 +17,19 @@ export const createOwnershipVerification = async (
     select: {
       id: true,
       ownerId: true,
+      deletedAt: true,
     },
   });
 
   if (!property) {
     throw new AppError("Property not found", 404);
+  }
+
+  if (property.deletedAt) {
+    throw new AppError(
+      "Cannot submit ownership verification for a deleted property",
+      404,
+    );
   }
 
   if (property.ownerId !== submittedById) {
