@@ -40,6 +40,7 @@ interface CreateVerificationDocumentParams {
 
 interface UploadAndCreateVerificationDocumentParams {
   parent: VerificationDocumentParent;
+  userId: string,
   docType: VerificationDocumentType;
   buffer: Buffer;
 }
@@ -60,6 +61,167 @@ const isAllowedDocumentType = (
     docType,
   );
 };
+
+
+const authorizeVerificationDocumentUploadInTransaction = async (
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  parent: VerificationDocumentParent,
+  userId: string,
+) => {
+  if (parent.type === "USER") {
+    const lockedRows = await tx.$queryRaw<{ id: string }[]>`
+      SELECT "id"
+      FROM "userVerification"
+      WHERE "id" = ${parent.verificationId}
+      FOR UPDATE
+    `;
+
+    if (lockedRows.length === 0) {
+      throw new AppError("User verification not found", 404);
+    }
+
+    const verification = await tx.userVerification.findUnique({
+      where: { id: parent.verificationId },
+      select: {
+        userId: true,
+        status: true,
+      },
+    });
+
+    if (!verification) {
+      throw new AppError("User verification not found", 404);
+    }
+
+    if (verification.userId !== userId) {
+      throw new AppError(
+        "Unauthorized to upload document for this verification",
+        403,
+      );
+    }
+
+    if (verification.status !== "PENDING") {
+      throw new AppError(
+        "Documents can only be uploaded while verification is pending",
+        409,
+      );
+    }
+
+    return;
+  }
+
+  if (parent.type === "OWNERSHIP") {
+    // Read the property ID so we can acquire locks in a consistent order:
+    // Property first, then OwnershipVerification.
+    const initialVerification =
+      await tx.ownershipVerification.findUnique({
+        where: { id: parent.verificationId },
+        select: { propertyId: true },
+      });
+
+    if (!initialVerification) {
+      throw new AppError("Ownership verification not found", 404);
+    }
+
+    const lockedProperties = await tx.$queryRaw<{ id: string }[]>`
+      SELECT "id"
+      FROM "Property"
+      WHERE "id" = ${initialVerification.propertyId}
+      FOR UPDATE
+    `;
+
+    if (lockedProperties.length === 0) {
+      throw new AppError("Property not found", 404);
+    }
+
+    const lockedVerifications = await tx.$queryRaw<{ id: string }[]>`
+      SELECT "id"
+      FROM "OwnershipVerification"
+      WHERE "id" = ${parent.verificationId}
+      FOR UPDATE
+    `;
+
+    if (lockedVerifications.length === 0) {
+      throw new AppError("Ownership verification not found", 404);
+    }
+
+    const verification = await tx.ownershipVerification.findUnique({
+      where: { id: parent.verificationId },
+      include: {
+        property: {
+          select: {
+            ownerId: true,
+            deletedAt: true,
+          },
+        },
+      },
+    });
+
+    if (!verification) {
+      throw new AppError("Ownership verification not found", 404);
+    }
+
+    if (verification.property.ownerId !== userId) {
+      throw new AppError(
+        "You are not authorized to upload documents for this verification",
+        403,
+      );
+    }
+
+    if (verification.property.deletedAt) {
+      throw new AppError(
+        "Cannot upload documents for a deleted property",
+        404,
+      );
+    }
+
+    if (verification.status !== "PENDING") {
+      throw new AppError(
+        "Documents can only be uploaded while verification is pending",
+        409,
+      );
+    }
+
+    return;
+  }
+
+  const lockedRows = await tx.$queryRaw<{ id: string }[]>`
+    SELECT "id"
+    FROM "BusinessVerification"
+    WHERE "id" = ${parent.verificationId}
+    FOR UPDATE
+  `;
+
+  if (lockedRows.length === 0) {
+    throw new AppError("Business verification not found", 404);
+  }
+
+  const verification = await tx.businessVerification.findUnique({
+    where: { id: parent.verificationId },
+    select: {
+      ownerId: true,
+      status: true,
+    },
+  });
+
+  if (!verification) {
+    throw new AppError("Business verification not found", 404);
+  }
+
+  if (verification.ownerId !== userId) {
+    throw new AppError(
+      "You are not authorized to upload documents for this verification",
+      403,
+    );
+  }
+
+  if (verification.status !== "PENDING") {
+    throw new AppError(
+      "Documents can only be uploaded while verification is pending",
+      409,
+    );
+  }
+};
+
 
 /**
  * Upload a verification document to private Cloudinary storage.
@@ -171,8 +333,10 @@ export const createVerificationDocument = async ({
  * If Cloudinary succeeds but Prisma fails, the uploaded
  * Cloudinary object is deleted to prevent orphaned files.
  */
+
 export const uploadAndCreateVerificationDocument = async ({
   parent,
+  userId,
   docType,
   buffer,
 }: UploadAndCreateVerificationDocumentParams) => {
@@ -183,19 +347,49 @@ export const uploadAndCreateVerificationDocument = async ({
     );
   }
 
-  const uploaded = await uploadVerificationDocument({
-    buffer,
-  });
+  // Cloudinary upload happens before opening the database transaction.
+  const uploaded = await uploadVerificationDocument({ buffer });
 
   try {
-    const document = await createVerificationDocument({
-      parent,
-      docType,
-      storageKey: uploaded.storageKey,
-    });
+    const document = await prisma.$transaction(
+      async (tx) => {
+        // Recheck authorization while holding the relevant row locks.
+        await authorizeVerificationDocumentUploadInTransaction(
+          tx,
+          parent,
+          userId,
+        );
+
+        const data = {
+          storageKey: uploaded.storageKey,
+          fileUrl: null,
+          docType,
+
+          ...(parent.type === "USER"
+            ? { userVerificationId: parent.verificationId }
+            : {}),
+
+          ...(parent.type === "OWNERSHIP"
+            ? { ownershipVerificationId: parent.verificationId }
+            : {}),
+
+          ...(parent.type === "BUSINESS"
+            ? { businessVerificationId: parent.verificationId }
+            : {}),
+        };
+
+        return tx.verificationDocument.create({ data });
+      },
+      {
+        maxWait: 5000,
+        timeout: 10000,
+      },
+    );
 
     return document;
   } catch (error) {
+    // The upload succeeded, but the database operation failed.
+    // Remove the Cloudinary asset to prevent an orphaned file.
     try {
       await deleteVerificationDocument(uploaded.storageKey);
     } catch (cleanupError) {
@@ -211,6 +405,7 @@ export const uploadAndCreateVerificationDocument = async ({
     throw error;
   }
 };
+
 
 export const authorizeUserVerificationDocumentUpload = async (
   verificationId: string,
@@ -343,6 +538,7 @@ export const uploadUserVerificationDocument = async ({
       type: "USER",
       verificationId,
     },
+    userId,
     docType,
     buffer,
   });
@@ -369,6 +565,7 @@ export const uploadOwnershipVerificationDocument = async ({
       type: "OWNERSHIP",
       verificationId,
     },
+    userId,
     docType,
     buffer,
   });
@@ -395,6 +592,7 @@ export const uploadBusinessVerificationDocument = async ({
       type: "BUSINESS",
       verificationId,
     },
+    userId,
     docType,
     buffer,
   });
