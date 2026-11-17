@@ -23,6 +23,7 @@ import {
   rejectBusinessVerificationController,
   rejectOwnershipVerificationController,
   rejectUserVerificationController,
+  getAdminUserVerificationController,
 } from "./verification.controller.js";
 
 import { authorizeRoles } from "../../middleware/authorizeRoles.js";
@@ -107,6 +108,13 @@ verificationRouter.patch(
   authorizeRoles("ADMIN"),
   validateRequest(rejectVerificationSchema),
   rejectUserVerificationController,
+);
+
+verificationRouter.get(
+  "/admin/user/:verificationId",
+  authorizeRoles("ADMIN"),
+  validateRequest(verificationIdSchema),
+  getAdminUserVerificationController,
 );
 
     // owner

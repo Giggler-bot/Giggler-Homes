@@ -32,7 +32,6 @@ export function encryptVerificationNumber(value: string): string {
   ].join(":");
 }
 
-
 export function decryptVerificationNumber(value: string): string {
   const [
     prefix,
@@ -70,8 +69,44 @@ export function decryptVerificationNumber(value: string): string {
 
   decipher.setAuthTag(authTag);
 
-  return Buffer.concat([
-    decipher.update(encrypted),
-    decipher.final(),
-  ]).toString("utf8");
+  return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString(
+    "utf8",
+  );
+}
+
+export function maskEncryptedVerificationNumber(value: string): string {
+  const decrypted = decryptVerificationNumber(value);
+  const characters = [...decrypted];
+
+  const alphanumericIndexes = characters
+    .map((character, index) => (/[a-zA-Z0-9]/.test(character) ? index : -1))
+    .filter((index) => index !== -1);
+
+  const visibleIndexes = new Set<number>();
+
+  if (alphanumericIndexes.length <= 7) {
+    // For short identifiers, reveal only the final two characters.
+    alphanumericIndexes.slice(-2).forEach((index) => {
+      visibleIndexes.add(index);
+    });
+  } else {
+    // Preserve the first three and final four alphanumeric characters.
+    alphanumericIndexes.slice(0, 3).forEach((index) => {
+      visibleIndexes.add(index);
+    });
+
+    alphanumericIndexes.slice(-4).forEach((index) => {
+      visibleIndexes.add(index);
+    });
+  }
+
+  return characters
+    .map((character, index) => {
+      if (!/[a-zA-Z0-9]/.test(character)) {
+        return character;
+      }
+
+      return visibleIndexes.has(index) ? character : "*";
+    })
+    .join("");
 }

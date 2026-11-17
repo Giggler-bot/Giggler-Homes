@@ -35,6 +35,8 @@ model User {
   reviewedOwnershipVerifications  OwnershipVerification[] @relation("OwnershipVerificationReviewer")
   reviewedBusinessVerifications   BusinessVerification[]  @relation("BusinessVerificationReviewer")
 
+  verificationAccessLogs VerificationAccessLog[] @relation("VerificationAccessLogAdmin")
+
   submittedReports Report[] @relation("SubmittedReports")
 
   moderationActions ModerationActions[] @relation("ModerationActions")
@@ -250,6 +252,22 @@ model userVerification {
 
   user     User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   reviewer User? @relation("UserVerificationReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+}
+
+model VerificationAccessLog {
+  id             String   @id @default(cuid())
+  verificationId String
+  subjectUserId  String
+  adminId        String
+  accessedAt     DateTime @default(now())
+  ipAddress      String?
+  userAgent      String?
+
+  admin User @relation("VerificationAccessLogAdmin", fields: [adminId], references: [id], onDelete: Restrict)
+
+  @@index([verificationId, accessedAt])
+  @@index([subjectUserId, accessedAt])
+  @@index([adminId, accessedAt])
 }
 
 model OwnershipVerification {

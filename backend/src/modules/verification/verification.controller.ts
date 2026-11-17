@@ -209,3 +209,21 @@ export const rejectBusinessVerificationController = async (
     data: verification,
   });
 };
+
+export const getAdminUserVerificationController = async (
+  req: Request<{ verificationId: string }>,
+  res: Response,
+) => {
+  const verification = await userVerification.getAdminUserVerification(
+    req.params.verificationId,
+    req.user!.id,
+    req.ip ?? null,
+    req.get("user-agent") ?? null,
+  );
+
+  return res.status(200).json({
+    success: true,
+    message: "User verification retrieved successfully",
+    data: verification,
+  });
+};

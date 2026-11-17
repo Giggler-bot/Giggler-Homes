@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import {
   encryptVerificationNumber,
   decryptVerificationNumber,
+  maskEncryptedVerificationNumber
 } from "../src/common/security/verificationEncryption.js";
 
 test("encrypts and decrypts an identity number", () => {
@@ -49,4 +50,24 @@ test("rejects an unsupported encryption version", () => {
   const unsupported = encrypted.replace("enc:v1:", "enc:v2:");
 
   assert.throws(() => decryptVerificationNumber(unsupported));
+});
+
+test("masks an encrypted identity number", () => {
+  const original = "GHA-123456789-0";
+  const encrypted = encryptVerificationNumber(original);
+
+  assert.equal(
+    maskEncryptedVerificationNumber(encrypted),
+    "GHA-******789-0",
+  );
+});
+
+test("does not expose short identity numbers", () => {
+  const original = "ABC123";
+  const encrypted = encryptVerificationNumber(original);
+
+  assert.equal(
+    maskEncryptedVerificationNumber(encrypted),
+    "****23",
+  );
 });
