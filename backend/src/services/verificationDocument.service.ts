@@ -309,6 +309,7 @@ export const uploadAndCreateVerificationDocument = async ({
         const data = {
           storageKey: uploaded.storageKey,
           fileUrl: null,
+          format: uploaded.format,
           docType,
 
           ...(parent.type === "USER"

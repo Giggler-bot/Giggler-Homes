@@ -315,6 +315,7 @@ model VerificationDocument {
   id         String                   @id @default(cuid())
   storageKey String                   @unique
   fileUrl    String?
+  format     String?
   docType    VerificationDocumentType
   uploadedAt DateTime                 @default(now())
 
