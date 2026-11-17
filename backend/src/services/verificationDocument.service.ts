@@ -222,6 +222,7 @@ export const authorizeUserVerificationDocumentUpload = async (
       id: true,
       userId: true,
       status: true,
+
     },
   });
 
@@ -256,6 +257,7 @@ export const authorizeOwnershipVerificationDocumentUpload = async (
       property: {
         select: {
           ownerId: true,
+          deletedAt: true,
         },
       },
     },
@@ -269,6 +271,13 @@ export const authorizeOwnershipVerificationDocumentUpload = async (
     throw new AppError(
       "You are not authorized to upload documents for this verification",
       403,
+    );
+  }
+
+  if (verification.property.deletedAt) {
+    throw new AppError(
+      "Cannot upload documents for a deleted property",
+      404,
     );
   }
 
