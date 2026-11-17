@@ -31,13 +31,6 @@ interface UploadedVerificationDocument {
   format?: string;
 }
 
-interface CreateVerificationDocumentParams {
-  parent: VerificationDocumentParent;
-  docType: VerificationDocumentType;
-  storageKey: string;
-  fileUrl?: string;
-}
-
 interface UploadAndCreateVerificationDocumentParams {
   parent: VerificationDocumentParent;
   userId: string,
@@ -279,54 +272,6 @@ export const deleteVerificationDocument = async (
 };
 
 /**
- * Create the VerificationDocument database record.
- *
- * Exactly one verification parent is assigned based on the
- * parent.type discriminator.
- */
-export const createVerificationDocument = async ({
-  parent,
-  docType,
-  storageKey,
-  fileUrl,
-}: CreateVerificationDocumentParams) => {
-  if (!isAllowedDocumentType(parent.type, docType)) {
-    throw new AppError(
-      "Document type is not allowed for this verification",
-      400,
-    );
-  }
-
-  const data = {
-    storageKey,
-    fileUrl: fileUrl ?? null,
-    docType,
-
-    ...(parent.type === "USER"
-      ? {
-          userVerificationId: parent.verificationId,
-        }
-      : {}),
-
-    ...(parent.type === "OWNERSHIP"
-      ? {
-          ownershipVerificationId: parent.verificationId,
-        }
-      : {}),
-
-    ...(parent.type === "BUSINESS"
-      ? {
-          businessVerificationId: parent.verificationId,
-        }
-      : {}),
-  };
-
-  return prisma.verificationDocument.create({
-    data,
-  });
-};
-
-/**
  * Upload a document to Cloudinary and then create its
  * VerificationDocument database record.
  *
@@ -349,6 +294,7 @@ export const uploadAndCreateVerificationDocument = async ({
 
   // Cloudinary upload happens before opening the database transaction.
   const uploaded = await uploadVerificationDocument({ buffer });
+
 
   try {
     const document = await prisma.$transaction(
