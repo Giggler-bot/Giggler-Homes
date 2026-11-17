@@ -23,6 +23,7 @@ type VerificationDocumentParent =
 
 interface UploadVerificationDocumentParams {
   buffer: Buffer;
+  mimeType: string;
 }
 
 interface UploadedVerificationDocument {
@@ -33,9 +34,10 @@ interface UploadedVerificationDocument {
 
 interface UploadAndCreateVerificationDocumentParams {
   parent: VerificationDocumentParent;
-  userId: string,
+  userId: string;
   docType: VerificationDocumentType;
   buffer: Buffer;
+   mimeType: string;
 }
 
 const allowedDocumentTypes = {
@@ -53,6 +55,13 @@ const isAllowedDocumentType = (
   return (allowedDocumentTypes[verificationType] as readonly string[]).includes(
     docType,
   );
+};
+
+const verificationFileExtensions: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "application/pdf": "pdf",
 };
 
 
@@ -226,10 +235,18 @@ const authorizeVerificationDocumentUploadInTransaction = async (
  * The returned storageKey is the internal Cloudinary identifier.
  * No public URL is returned.
  */
+
 export const uploadVerificationDocument = async ({
   buffer,
+  mimeType,
 }: UploadVerificationDocumentParams): Promise<UploadedVerificationDocument> => {
-  const storageKey = `giggler-homes/verifications/${crypto.randomUUID()}`;
+  const format = verificationFileExtensions[mimeType];
+
+  if (!format) {
+    throw new AppError("Unsupported verification document format", 400);
+  }
+
+  const storageKey = `giggler-homes/verifications/${crypto.randomUUID()}.${format}`;
 
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
@@ -250,7 +267,7 @@ export const uploadVerificationDocument = async ({
         resolve({
           storageKey: result.public_id,
           resourceType: result.resource_type,
-          format: result.format,
+          format,
         });
       },
     );
@@ -284,6 +301,7 @@ export const uploadAndCreateVerificationDocument = async ({
   userId,
   docType,
   buffer,
+  mimeType,
 }: UploadAndCreateVerificationDocumentParams) => {
   if (!isAllowedDocumentType(parent.type, docType)) {
     throw new AppError(
@@ -293,7 +311,7 @@ export const uploadAndCreateVerificationDocument = async ({
   }
 
   // Cloudinary upload happens before opening the database transaction.
-  const uploaded = await uploadVerificationDocument({ buffer });
+  const uploaded = await uploadVerificationDocument({ buffer, mimeType, });
 
 
   try {
@@ -352,7 +370,6 @@ export const uploadAndCreateVerificationDocument = async ({
     throw error;
   }
 };
-
 
 export const authorizeUserVerificationDocumentUpload = async (
   verificationId: string,
@@ -472,11 +489,13 @@ export const uploadUserVerificationDocument = async ({
   userId,
   docType,
   buffer,
+  mimeType,
 }: {
   verificationId: string;
   userId: string;
   docType: VerificationDocumentType;
   buffer: Buffer;
+  mimeType: string;
 }) => {
   await authorizeUserVerificationDocumentUpload(verificationId, userId);
 
@@ -488,6 +507,7 @@ export const uploadUserVerificationDocument = async ({
     userId,
     docType,
     buffer,
+    mimeType,
   });
 };
 
@@ -496,11 +516,13 @@ export const uploadOwnershipVerificationDocument = async ({
   userId,
   docType,
   buffer,
+  mimeType,
 }: {
   verificationId: string;
   userId: string;
   docType: VerificationDocumentType;
   buffer: Buffer;
+    mimeType: string;
 }) => {
   await authorizeOwnershipVerificationDocumentUpload(
     verificationId,
@@ -515,6 +537,7 @@ export const uploadOwnershipVerificationDocument = async ({
     userId,
     docType,
     buffer,
+    mimeType,
   });
 };
 
@@ -523,11 +546,13 @@ export const uploadBusinessVerificationDocument = async ({
   userId,
   docType,
   buffer,
+  mimeType,
 }: {
   verificationId: string;
   userId: string;
   docType: VerificationDocumentType;
   buffer: Buffer;
+    mimeType: string;
 }) => {
   await authorizeBusinessVerificationDocumentUpload(
     verificationId,
@@ -542,5 +567,77 @@ export const uploadBusinessVerificationDocument = async ({
     userId,
     docType,
     buffer,
+    mimeType,
   });
+};
+
+export const getVerificationDocumentDownloadUrl = async (
+  documentId: string,
+  userId: string,
+  isAdmin: boolean,
+) => {
+  const document = await prisma.verificationDocument.findUnique({
+    where: { id: documentId },
+    include: {
+      userVerification: {
+        select: {
+          userId: true,
+        },
+      },
+      ownershipVerification: {
+        select: {
+          submittedById: true,
+        },
+      },
+      businessVerification: {
+        select: {
+          ownerId: true,
+        },
+      },
+    },
+  });
+
+  if (!document) {
+    throw new AppError("Verification document not found", 404);
+  }
+
+  const isAuthorized =
+    isAdmin ||
+    document.userVerification?.userId === userId ||
+    document.ownershipVerification?.submittedById === userId ||
+    document.businessVerification?.ownerId === userId;
+
+  if (!isAuthorized) {
+    throw new AppError(
+      "You are not authorized to access this verification document",
+      403,
+    );
+  }
+
+  if (!document.format) {
+    throw new AppError(
+      "Document format is unavailable for download",
+      409,
+    );
+  }
+
+  const expiresAt = Math.floor(Date.now() / 1000) + 300;
+
+  const downloadUrl = cloudinary.utils.private_download_url(
+    document.storageKey,
+    document.format,
+    {
+      resource_type: "raw",
+      type: "authenticated",
+      expires_at: expiresAt,
+    },
+  );
+
+  return {
+    id: document.id,
+    docType: document.docType,
+    uploadedAt: document.uploadedAt,
+    downloadUrl,
+    expiresAt,
+  };
 };

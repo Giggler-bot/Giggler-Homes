@@ -4,6 +4,7 @@ import {
   uploadUserVerificationDocument,
   uploadOwnershipVerificationDocument,
   uploadBusinessVerificationDocument,
+  getVerificationDocumentDownloadUrl,
 } from "../../services/verificationDocument.service.js";
 
 import { AppError } from "../../common/errors/AppError.js";
@@ -21,6 +22,7 @@ export const uploadUserVerificationDocumentController = async (
     userId: req.user!.id,
     docType: req.body.docType,
     buffer: req.file.buffer,
+    mimeType: req.file.mimetype,
   });
 
   res.status(201).json({
@@ -46,6 +48,7 @@ export const uploadOwnershipVerificationDocumentController = async (
     userId: req.user!.id,
     docType: req.body.docType,
     buffer: req.file.buffer,
+    mimeType: req.file.mimetype,
   });
 
   res.status(201).json({
@@ -71,6 +74,7 @@ export const uploadBusinessVerificationDocumentController = async (
     userId: req.user!.id,
     docType: req.body.docType,
     buffer: req.file.buffer,
+    mimeType: req.file.mimetype,
   });
 
   res.status(201).json({
@@ -80,5 +84,22 @@ export const uploadBusinessVerificationDocumentController = async (
       docType: document.docType,
       uploadedAt: document.uploadedAt,
     },
+  });
+};
+
+
+export const getVerificationDocumentController = async(
+  req: Request<{ documentId: string }>,
+  res: Response,
+) => {
+  const document = await getVerificationDocumentDownloadUrl(
+    req.params.documentId,
+    req.user!.id,
+    req.user!.role === "ADMIN"
+  );
+
+  res.status(200).json({
+    success: true,
+    data: document,
   });
 };

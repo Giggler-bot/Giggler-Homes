@@ -85,3 +85,9 @@ export const verificationDocumentUploadSchema = z.object({
     docType: z.enum(verificationDocumentTypes),
   }),
 });
+
+export const getVerificationDocumentSchema = z.object({
+  params: z.object({
+    documentId: z.cuid(),
+  })
+})

@@ -10,6 +10,7 @@ import {
   rejectVerificationSchema,
   verificationDocumentUploadSchema,
   verificationIdSchema,
+  getVerificationDocumentSchema
 } from "./verification.validation.js";
 import {
   approveBusinessVerificationController,
@@ -29,7 +30,12 @@ import {
 
 import { authorizeRoles } from "../../middleware/authorizeRoles.js";
 import { verificationUpload } from "../../middleware/verificationUpload.js";
-import { uploadBusinessVerificationDocumentController, uploadOwnershipVerificationDocumentController, uploadUserVerificationDocumentController } from "./verificationDocument.controller.js";
+import {
+  uploadBusinessVerificationDocumentController,
+  uploadOwnershipVerificationDocumentController,
+  uploadUserVerificationDocumentController,
+  getVerificationDocumentController,
+} from "./verificationDocument.controller.js";
 
 const verificationRouter = Router();
 
@@ -72,7 +78,7 @@ verificationRouter.get(
 );
 
 // verification document upload
-    // user
+// user
 verificationRouter.post(
   "/user/:verificationId/documents",
   verificationUpload.single("file"),
@@ -81,7 +87,7 @@ verificationRouter.post(
   uploadUserVerificationDocumentController,
 );
 
-    // ownership
+// ownership
 verificationRouter.post(
   "/ownership/:verificationId/documents",
   verificationUpload.single("file"),
@@ -98,8 +104,14 @@ verificationRouter.post(
   uploadBusinessVerificationDocumentController,
 );
 
+verificationRouter.get(
+  "/documents/:documentId",
+  validateRequest(getVerificationDocumentSchema),
+  getVerificationDocumentController,
+);
+
 // Admin Routes
-    // user
+// user
 verificationRouter.patch(
   "/user/:verificationId/approve",
   authorizeRoles("ADMIN"),
@@ -121,7 +133,7 @@ verificationRouter.get(
   getAdminUserVerificationController,
 );
 
-    // owner
+// owner
 verificationRouter.patch(
   "/ownership/:verificationId/approve",
   authorizeRoles("ADMIN"),
@@ -136,7 +148,7 @@ verificationRouter.patch(
   rejectOwnershipVerificationController,
 );
 
-    // business
+// business
 verificationRouter.patch(
   "/business/:verificationId/approve",
   authorizeRoles("ADMIN"),
