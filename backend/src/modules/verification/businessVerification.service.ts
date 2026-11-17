@@ -136,29 +136,37 @@ export const approveBusinessVerification = async (
   verificationId: string,
   adminId: string,
 ) => {
-  const verification = await prisma.businessVerification.findUnique({
-    where: { id: verificationId },
-  });
-
-  if (!verification) {
-    throw new AppError("Business verification not found", 404);
-  }
-
-  if (verification.status !== VerificationStatus.PENDING) {
-    throw new AppError(
-      "Only pending business verifications can be approved",
-      409,
-    );
-  }
-
-  return prisma.businessVerification.update({
-    where: { id: verificationId },
+  const result = await prisma.businessVerification.updateMany({
+    where: {
+      id: verificationId,
+      status: VerificationStatus.PENDING,
+    },
     data: {
       status: VerificationStatus.VERIFIED,
       reviewedBy: adminId,
       reviewedAt: new Date(),
       rejectionReason: null,
     },
+  });
+
+  if (result.count === 0) {
+    const verification = await prisma.businessVerification.findUnique({
+      where: { id: verificationId },
+      select: { id: true },
+    });
+
+    if (!verification) {
+      throw new AppError("Business verification not found", 404);
+    }
+
+    throw new AppError(
+      "Only pending business verifications can be approved",
+      409,
+    );
+  }
+
+  return prisma.businessVerification.findUniqueOrThrow({
+    where: { id: verificationId },
   });
 };
 
@@ -167,28 +175,36 @@ export const rejectBusinessVerification = async (
   adminId: string,
   rejectionReason: string,
 ) => {
-  const verification = await prisma.businessVerification.findUnique({
-    where: { id: verificationId },
-  });
-
-  if (!verification) {
-    throw new AppError("Business verification not found", 404);
-  }
-
-  if (verification.status !== VerificationStatus.PENDING) {
-    throw new AppError(
-      "Only pending business verifications can be rejected",
-      409,
-    );
-  }
-
-  return prisma.businessVerification.update({
-    where: { id: verificationId },
+  const result = await prisma.businessVerification.updateMany({
+    where: {
+      id: verificationId,
+      status: VerificationStatus.PENDING,
+    },
     data: {
       status: VerificationStatus.REJECTED,
       reviewedBy: adminId,
       reviewedAt: new Date(),
       rejectionReason,
     },
+  });
+
+  if (result.count === 0) {
+    const verification = await prisma.businessVerification.findUnique({
+      where: { id: verificationId },
+      select: { id: true },
+    });
+
+    if (!verification) {
+      throw new AppError("Business verification not found", 404);
+    }
+
+    throw new AppError(
+      "Only pending business verifications can be rejected",
+      409,
+    );
+  }
+
+  return prisma.businessVerification.findUniqueOrThrow({
+    where: { id: verificationId },
   });
 };
