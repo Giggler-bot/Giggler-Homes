@@ -241,3 +241,62 @@ export const getAdminUserVerification = async (
     idNumber: decryptedIdNumber,
   };
 };
+
+
+export const getPendingUserVerifications = async (
+  page: number,
+  limit: number,
+) => {
+  const skip = (page - 1) * limit;
+
+  const [verifications, total] = await prisma.$transaction([
+    prisma.userVerification.findMany({
+      where: {
+        status: VerificationStatus.PENDING,
+      },
+      select: {
+        id: true,
+        userId: true,
+        idType: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        document: {
+          select: {
+            id: true,
+            docType: true,
+            uploadedAt: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+      skip,
+      take: limit,
+    }),
+    prisma.userVerification.count({
+      where: {
+        status: VerificationStatus.PENDING,
+      },
+    }),
+  ]);
+
+  return {
+    verifications,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+};

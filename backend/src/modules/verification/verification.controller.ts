@@ -36,6 +36,23 @@ export const getUserVerificationController = async (
   });
 };
 
+export const getPendingUserVerificationsController = async (
+  req: Request,
+  res: Response
+) => {
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 20;
+
+  const result = await userVerification.getPendingUserVerifications(page, limit);
+
+  res.status(200).json({
+    success: true,
+    message: "Pending user verifications retrieved successfully",
+    data: result.verifications,
+    pagination: result.pagination,
+  });
+};
+
 export const approveUserVerificationController = async (
   req: Request<{ verificationId: string }>,
   res: Response,

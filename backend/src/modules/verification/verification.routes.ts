@@ -1,35 +1,30 @@
+
 import { Router } from "express";
+
 import { authenticate } from "../../middleware/authenticate.js";
+import { authorizeRoles } from "../../middleware/authorizeRoles.js";
 import { validateRequest } from "../../middleware/validateRequest.js";
 import { validateVerificationFile } from "../../middleware/validateVerificationFile.js";
+import { verificationUpload } from "../../middleware/verificationUpload.js";
+
 import {
   createBusinessVerificationSchema,
   createOwnershipVerificationSchema,
   createUserVerificationSchema,
   ownershipPropertyIdSchema,
-  rejectVerificationSchema,
   verificationDocumentUploadSchema,
-  verificationIdSchema,
-  getVerificationDocumentSchema
+  getVerificationDocumentSchema,
 } from "./verification.validation.js";
+
 import {
-  approveBusinessVerificationController,
-  approveOwnershipVerificationController,
-  approveUserVerificationController,
   createBusinessVerificationController,
   createOwnershipVerificationController,
   createUserVerificationController,
   getBusinessVerificationController,
   getOwnershipVerificationController,
   getUserVerificationController,
-  rejectBusinessVerificationController,
-  rejectOwnershipVerificationController,
-  rejectUserVerificationController,
-  getAdminUserVerificationController,
 } from "./verification.controller.js";
 
-import { authorizeRoles } from "../../middleware/authorizeRoles.js";
-import { verificationUpload } from "../../middleware/verificationUpload.js";
 import {
   uploadBusinessVerificationDocumentController,
   uploadOwnershipVerificationDocumentController,
@@ -41,16 +36,25 @@ const verificationRouter = Router();
 
 verificationRouter.use(authenticate);
 
+// ==========================================
 // User Verification Routes
+// ==========================================
+
 verificationRouter.post(
   "/user",
   validateRequest(createUserVerificationSchema),
   createUserVerificationController,
 );
 
-verificationRouter.get("/user/me", getUserVerificationController);
+verificationRouter.get(
+  "/user/me",
+  getUserVerificationController,
+);
 
-// owner Verification Routes
+// ==========================================
+// Ownership Verification Routes
+// ==========================================
+
 verificationRouter.post(
   "/ownership/properties/:propertyId",
   validateRequest(createOwnershipVerificationSchema),
@@ -63,7 +67,10 @@ verificationRouter.get(
   getOwnershipVerificationController,
 );
 
+// ==========================================
 // Business Verification Routes
+// ==========================================
+
 verificationRouter.post(
   "/business",
   authorizeRoles("AGENCY", "HOTEL"),
@@ -77,8 +84,11 @@ verificationRouter.get(
   getBusinessVerificationController,
 );
 
-// verification document upload
-// user
+// ==========================================
+// Verification Document Upload Routes
+// ==========================================
+
+// User identity documents
 verificationRouter.post(
   "/user/:verificationId/documents",
   verificationUpload.single("file"),
@@ -87,7 +97,7 @@ verificationRouter.post(
   uploadUserVerificationDocumentController,
 );
 
-// ownership
+// Property ownership documents
 verificationRouter.post(
   "/ownership/:verificationId/documents",
   verificationUpload.single("file"),
@@ -96,6 +106,7 @@ verificationRouter.post(
   uploadOwnershipVerificationDocumentController,
 );
 
+// Business verification documents
 verificationRouter.post(
   "/business/:verificationId/documents",
   verificationUpload.single("file"),
@@ -104,63 +115,14 @@ verificationRouter.post(
   uploadBusinessVerificationDocumentController,
 );
 
+// ==========================================
+// Secure Document Retrieval
+// ==========================================
+
 verificationRouter.get(
   "/documents/:documentId",
   validateRequest(getVerificationDocumentSchema),
   getVerificationDocumentController,
-);
-
-// Admin Routes
-// user
-verificationRouter.patch(
-  "/user/:verificationId/approve",
-  authorizeRoles("ADMIN"),
-  validateRequest(verificationIdSchema),
-  approveUserVerificationController,
-);
-
-verificationRouter.patch(
-  "/user/:verificationId/reject",
-  authorizeRoles("ADMIN"),
-  validateRequest(rejectVerificationSchema),
-  rejectUserVerificationController,
-);
-
-verificationRouter.get(
-  "/admin/user/:verificationId",
-  authorizeRoles("ADMIN"),
-  validateRequest(verificationIdSchema),
-  getAdminUserVerificationController,
-);
-
-// owner
-verificationRouter.patch(
-  "/ownership/:verificationId/approve",
-  authorizeRoles("ADMIN"),
-  validateRequest(verificationIdSchema),
-  approveOwnershipVerificationController,
-);
-
-verificationRouter.patch(
-  "/ownership/:verificationId/reject",
-  authorizeRoles("ADMIN"),
-  validateRequest(rejectVerificationSchema),
-  rejectOwnershipVerificationController,
-);
-
-// business
-verificationRouter.patch(
-  "/business/:verificationId/approve",
-  authorizeRoles("ADMIN"),
-  validateRequest(verificationIdSchema),
-  approveBusinessVerificationController,
-);
-
-verificationRouter.patch(
-  "/business/:verificationId/reject",
-  authorizeRoles("ADMIN"),
-  validateRequest(rejectVerificationSchema),
-  rejectBusinessVerificationController,
 );
 
 export default verificationRouter;
