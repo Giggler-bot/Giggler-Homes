@@ -100,30 +100,37 @@ export const approveUserVerification = async (
   verificationId: string,
   adminId: string,
 ) => {
-  const verification = await prisma.userVerification.findUnique({
-    where: { id: verificationId },
-  });
-
-  if (!verification) {
-    throw new AppError("User verification not found", 404);
-  }
-
-  if (verification.status !== VerificationStatus.PENDING) {
-    throw new AppError("Only pending verifications can be approved", 409);
-  }
-
-  const updatedVerification = await prisma.userVerification.update({
-    where: { id: verificationId },
+  const result = await prisma.userVerification.updateMany({
+    where: {
+      id: verificationId,
+      status: VerificationStatus.PENDING,
+    },
     data: {
       status: VerificationStatus.VERIFIED,
       reviewedAt: new Date(),
       rejectionReason: null,
-      reviewer: {
-        connect: {
-          id: adminId,
-        },
-      },
+      reviewedBy: adminId,
     },
+  });
+
+  if (result.count === 0) {
+    const verification = await prisma.userVerification.findUnique({
+      where: { id: verificationId },
+      select: { id: true },
+    });
+
+    if (!verification) {
+      throw new AppError("User verification not found", 404);
+    }
+
+    throw new AppError(
+      "Only pending verifications can be approved",
+      409,
+    );
+  }
+
+  const updatedVerification = await prisma.userVerification.findUniqueOrThrow({
+    where: { id: verificationId },
   });
 
   return toSafeVerificationResponse(updatedVerification);
@@ -134,30 +141,37 @@ export const rejectUserVerification = async (
   adminId: string,
   rejectionReason: string,
 ) => {
-  const verification = await prisma.userVerification.findUnique({
-    where: { id: verificationId },
-  });
-
-  if (!verification) {
-    throw new AppError("User verification not found", 404);
-  }
-
-  if (verification.status !== VerificationStatus.PENDING) {
-    throw new AppError("Only pending verifications can be rejected", 409);
-  }
-
-  const updatedVerification = await prisma.userVerification.update({
-    where: { id: verificationId },
+  const result = await prisma.userVerification.updateMany({
+    where: {
+      id: verificationId,
+      status: VerificationStatus.PENDING,
+    },
     data: {
       status: VerificationStatus.REJECTED,
       reviewedAt: new Date(),
       rejectionReason,
-      reviewer: {
-        connect: {
-          id: adminId,
-        },
-      },
+      reviewedBy: adminId,
     },
+  });
+
+  if (result.count === 0) {
+    const verification = await prisma.userVerification.findUnique({
+      where: { id: verificationId },
+      select: { id: true },
+    });
+
+    if (!verification) {
+      throw new AppError("User verification not found", 404);
+    }
+
+    throw new AppError(
+      "Only pending verifications can be rejected",
+      409,
+    );
+  }
+
+  const updatedVerification = await prisma.userVerification.findUniqueOrThrow({
+    where: { id: verificationId },
   });
 
   return toSafeVerificationResponse(updatedVerification);
