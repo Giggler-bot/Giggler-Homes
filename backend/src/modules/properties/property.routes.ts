@@ -12,6 +12,8 @@ import {
   removePropertyAmenityController,
   updatePropertyAvailabilityController,
   deletePropertyController,
+  getRecentlyDeletedPropertiesController,
+  restorePropertyController,
 } from "./property.controller.js";
 
 import { validateRequest } from "../../middleware/validateRequest.js";
@@ -23,6 +25,8 @@ import {
   removePropertyAmenitySchema,
   updatePropertyAvailabilitySchema,
   deletePropertySchema,
+  getRecentlyDeletedPropertiesSchema,
+  restorePropertySchema,
 } from "./property.validation.js";
 
 import { getPropertyMediaController } from "../media/media.controller.js";
@@ -93,6 +97,23 @@ propertyRouter.delete(
   validateRequest(deletePropertySchema),
   authorizePropertyOwner(),
   deletePropertyController,
+);
+
+propertyRouter.get(
+  "/recently-deleted",
+  authenticate,
+  authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
+  validateRequest(getRecentlyDeletedPropertiesSchema),
+  getRecentlyDeletedPropertiesController,
+);
+
+propertyRouter.post(
+  "/:propertyId/restore",
+  authenticate,
+  authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
+  validateRequest(restorePropertySchema),
+  authorizePropertyOwner({ allowDeleted: true }),
+  restorePropertyController,
 );
 
 export default propertyRouter;

@@ -7,6 +7,8 @@ import {
   removeAmenityFromProperty,
   updatePropertyAvailability,
   softDeleteProperty,
+  getRecentlyDeletedProperties,
+  restoreProperty,
 } from "./property.service.js";
 
 export async function createPropertyController(req: Request, res: Response) {
@@ -129,4 +131,41 @@ export async function deletePropertyController(
       property,
     }
   })
+}
+
+export async function getRecentlyDeletedPropertiesController(
+  req: Request,
+  res: Response,
+) {
+  const ownerId = req.user!.id;
+
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 20;
+
+  const result = await getRecentlyDeletedProperties(
+    ownerId,
+    page,
+    limit,
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Recently deleted properties retrieved successfully",
+    data: result,
+  });
+}
+
+export async function restorePropertyController(
+  req: Request<{ propertyId: string }>,
+  res: Response,
+) {
+  const property = await restoreProperty(req.params.propertyId);
+
+  res.status(200).json({
+    success: true,
+    message: "Property restored successfully",
+    data: {
+      property,
+    },
+  });
 }

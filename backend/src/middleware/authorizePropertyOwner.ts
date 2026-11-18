@@ -4,12 +4,19 @@ import { AppError } from "../common/errors/AppError.js";
 import { canManageProperty } from "../common/authorization/property.js";
 import { prisma } from "../lib/prisma.js";
 
-export function authorizePropertyOwner(): RequestHandler {
+type AuthorizePropertyOwnerOptions = {
+  allowDeleted?: boolean;
+};
+
+export function authorizePropertyOwner(
+  options: AuthorizePropertyOwnerOptions = {},
+): RequestHandler {
   return async (req, res, next) => {
     try {
       if (!req.user) {
         throw new AppError("Authentication is required", 401);
       }
+
       const propertyId = req.params.propertyId as string;
 
       if (!propertyId) {
@@ -31,7 +38,7 @@ export function authorizePropertyOwner(): RequestHandler {
         throw new AppError("Property not found", 404);
       }
 
-      if (property.deletedAt) {
+      if (property.deletedAt && !options.allowDeleted) {
         throw new AppError("This property has been deleted", 404);
       }
 
@@ -42,7 +49,6 @@ export function authorizePropertyOwner(): RequestHandler {
         );
       }
 
-      
       next();
     } catch (error) {
       next(error);

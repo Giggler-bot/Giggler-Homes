@@ -35,9 +35,25 @@ if (
     "VERIFICATION_ENCRYPTION_KEY must be a valid Base64-encoded 32-byte key",
   );
 }
+
+const propertyRetentionDays = getNumberEnv(
+  "PROPERTY_RETENTION_DAYS",
+  30,
+);
+
+if (
+  !Number.isInteger(propertyRetentionDays) ||
+  propertyRetentionDays <= 0
+) {
+  throw new Error(
+    "PROPERTY_RETENTION_DAYS must be a positive integer",
+  );
+}
+
 export const env = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: getNumberEnv("PORT", 5000),
+  propertyRetentionDays,
   frontendUrl: process.env.frontend_url || "http://localhost:5173",
   databaseUrl: getRequiredEnv("DATABASE_URL"),
   jwtAccessSecret: getRequiredEnv("JWT_ACCESS_SECRET"),

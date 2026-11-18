@@ -125,3 +125,32 @@ export const removePropertyAmenitySchema = z
     query: z.object({}).strict().optional(),
   })
   .strict();
+
+  export const getRecentlyDeletedPropertiesSchema = z
+  .object({
+    query: z
+      .object({
+        page: z.coerce.number().int().positive().default(1),
+        limit: z.coerce.number().int().positive().max(100).default(20),
+      })
+      .strict(),
+
+    body: z.object({}).strict().optional(),
+
+    params: z.object({}).strict().optional(),
+  })
+  .strict();
+
+  export const restorePropertySchema = z
+  .object({
+    params: z
+      .object({
+        propertyId: z.uuid("Invalid property ID"),
+      })
+      .strict(),
+
+    body: z.object({}).strict().optional(),
+
+    query: z.object({}).strict().optional(),
+  })
+  .strict();

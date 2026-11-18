@@ -3,6 +3,7 @@ import { generateSlug } from "../../common/utils/slug.js";
 import { AppError } from "../../common/errors/AppError.js";
 import { Prisma } from "../../generated/prisma/client.js";
 
+import { env } from "../../config/env.js";
 
 type CreatePropertyInput = {
   ownerId: string;
@@ -333,6 +334,136 @@ export async function softDeleteProperty(propertyId: string) {
 
     return tx.property.findUnique({
       where: { id: propertyId },
+    });
+  });
+}
+
+
+export async function getRecentlyDeletedProperties(
+  ownerId: string,
+  page: number,
+  limit: number,
+) {
+  const skip = (page - 1) * limit;
+
+  const [properties, total] = await prisma.$transaction([
+    prisma.property.findMany({
+      where: {
+        ownerId,
+        deletedAt: {
+          not: null,
+        },
+      },
+      include: {
+        location: true,
+        propertyType: true,
+      },
+      orderBy: {
+        deletedAt: "desc",
+      },
+      skip,
+      take: limit,
+    }),
+
+    prisma.property.count({
+      where: {
+        ownerId,
+        deletedAt: {
+          not: null,
+        },
+      },
+    }),
+  ]);
+
+  const now = Date.now();
+  const retentionMilliseconds =
+    env.propertyRetentionDays * 24 * 60 * 60 * 1000;
+
+  const recentlyDeletedProperties = properties.map((property) => {
+    const permanentDeletionAt = new Date(
+      property.deletedAt!.getTime() + retentionMilliseconds,
+    );
+
+    const millisecondsRemaining =
+      permanentDeletionAt.getTime() - now;
+
+    const daysRemaining = Math.max(
+      0,
+      Math.ceil(millisecondsRemaining / (24 * 60 * 60 * 1000)),
+    );
+
+    return {
+      ...property,
+      permanentDeletionAt,
+      daysRemaining,
+      isExpired: millisecondsRemaining <= 0,
+    };
+  });
+
+  return {
+    properties: recentlyDeletedProperties,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+}
+
+export async function restoreProperty(propertyId: string) {
+  return prisma.$transaction(async (tx) => {
+    const property = await tx.property.findUnique({
+      where: {
+        id: propertyId,
+      },
+      select: {
+        id: true,
+        deletedAt: true,
+      },
+    });
+
+    if (!property) {
+      throw new AppError("Property not found", 404);
+    }
+
+    if (!property.deletedAt) {
+      throw new AppError("This property is not deleted", 409);
+    }
+
+    const permanentDeletionAt = new Date(
+      property.deletedAt.getTime() +
+        env.propertyRetentionDays * 24 * 60 * 60 * 1000,
+    );
+
+    if (Date.now() >= permanentDeletionAt.getTime()) {
+      throw new AppError(
+        "The restoration period has expired. This property can no longer be restored.",
+        410,
+      );
+    }
+
+    const restored = await tx.property.updateMany({
+      where: {
+        id: propertyId,
+        deletedAt: property.deletedAt,
+      },
+      data: {
+        deletedAt: null,
+      },
+    });
+
+    if (restored.count === 0) {
+      throw new AppError(
+        "The property could not be restored. Please try again.",
+        409,
+      );
+    }
+
+    return tx.property.findUnique({
+      where: {
+        id: propertyId,
+      },
     });
   });
 }
