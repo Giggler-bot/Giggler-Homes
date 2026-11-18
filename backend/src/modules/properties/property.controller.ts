@@ -6,13 +6,13 @@ import {
   getPropertyAmenities,
   removeAmenityFromProperty,
   updatePropertyAvailability,
+  softDeleteProperty,
 } from "./property.service.js";
-
 
 export async function createPropertyController(req: Request, res: Response) {
   const property = await createProperty({
     ...req.body,
-     ownerId: req.user?.id,
+    ownerId: req.user?.id,
   });
 
   res.status(201).json({
@@ -28,10 +28,7 @@ export async function updatePropertyController(
   req: Request<{ propertyId: string }>,
   res: Response,
 ) {
-  const property = await updateProperty(
-    req.params.propertyId,
-    req.body,
-  );
+  const property = await updateProperty(req.params.propertyId, req.body);
 
   res.status(200).json({
     success: true,
@@ -87,10 +84,8 @@ export async function getPropertyAmenitiesController(
   res: Response,
   next: NextFunction,
 ) {
-   try {
-    const amenities = await getPropertyAmenities(
-      req.params.propertyId,
-    );
+  try {
+    const amenities = await getPropertyAmenities(req.params.propertyId);
 
     res.status(200).json({
       success: true,
@@ -98,7 +93,7 @@ export async function getPropertyAmenitiesController(
     });
   } catch (error) {
     next(error);
-  } 
+  }
 }
 
 export async function removePropertyAmenityController(
@@ -119,4 +114,19 @@ export async function removePropertyAmenityController(
   } catch (error) {
     next(error);
   }
+}
+
+export async function deletePropertyController(
+  req: Request<{ propertyId: string }>,
+  res: Response,
+) {
+  const property = await softDeleteProperty(req.params.propertyId);
+
+  return res.status(200).json({
+    success: true,
+    message: "Property deleted successfully",
+    data: {
+      property,
+    }
+  })
 }

@@ -11,6 +11,7 @@ import {
   getPropertyAmenitiesController,
   removePropertyAmenityController,
   updatePropertyAvailabilityController,
+  deletePropertyController,
 } from "./property.controller.js";
 
 import { validateRequest } from "../../middleware/validateRequest.js";
@@ -21,6 +22,7 @@ import {
   getPropertyAmenitiesSchema,
   removePropertyAmenitySchema,
   updatePropertyAvailabilitySchema,
+  deletePropertySchema,
 } from "./property.validation.js";
 
 import { getPropertyMediaController } from "../media/media.controller.js";
@@ -82,6 +84,15 @@ propertyRouter.get(
   "/:propertyId/media",
   validateRequest(getPropertyMediaSchema),
   getPropertyMediaController,
+);
+
+propertyRouter.delete(
+  "/:propertyId",
+  authenticate,
+  authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
+  validateRequest(deletePropertySchema),
+  authorizePropertyOwner(),
+  deletePropertyController,
 );
 
 export default propertyRouter;

@@ -202,10 +202,7 @@ export async function assignAmenityToProperty(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      throw new AppError(
-        "Amenity is already assigned to this property",
-        409,
-      );
+      throw new AppError("Amenity is already assigned to this property", 409);
     }
 
     throw error;
@@ -291,5 +288,51 @@ export async function removeAmenityFromProperty(
         amenityId,
       },
     },
+  });
+}
+
+export async function softDeleteProperty(propertyId: string) {
+  return prisma.$transaction(async (tx) => {
+    const deletedAt = new Date();
+
+    const propertyUpdate = await tx.property.updateMany({
+      where: {
+        id: propertyId,
+        deletedAt: null,
+      },
+      data: {
+        deletedAt,
+      },
+    });
+
+    if (propertyUpdate.count === 0) {
+      const property = await tx.property.findUnique({
+        where: { id: propertyId },
+        select: {
+          id: true,
+          deletedAt: true,
+        },
+      });
+
+      if (!property) {
+        throw new AppError("Property not found", 404);
+      }
+
+      throw new AppError("This property has already been deleted", 409);
+    }
+
+    await tx.listing.updateMany({
+      where: {
+        propertyId,
+        deletedAt: null,
+      },
+      data: {
+        deletedAt,
+      },
+    });
+
+    return tx.property.findUnique({
+      where: { id: propertyId },
+    });
   });
 }

@@ -111,3 +111,17 @@ export const removePropertyAmenitySchema = z
       .strict(),
   })
   .strict();
+
+  export const deletePropertySchema = z
+  .object({
+    params: z
+      .object({
+        propertyId: z.uuid("Invalid property ID"),
+      })
+      .strict(),
+
+    body: z.object({}).strict().optional(),
+
+    query: z.object({}).strict().optional(),
+  })
+  .strict();
