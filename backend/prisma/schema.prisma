@@ -55,6 +55,7 @@ model Property {
   bathrooms             Int?
   bedrooms              Int?
   deletedAt             DateTime?
+  permanentDeletionAt   DateTime?
   description           String
   isAvailable           Boolean                @default(true)
   isFeatured            Boolean                @default(false)
@@ -80,6 +81,7 @@ model Property {
   @@index([isAvailable])
   @@index([isFeatured])
   @@index([deletedAt])
+  @@index([permanentDeletionAt])
 }
 
 model Location {
@@ -176,6 +178,23 @@ model Media {
   @@index([isPrimary])
   @@index([deletedAt])
 }
+
+model MediaAssetCleanup {
+  id           String    @id @default(cuid())
+  publicId     String
+  resourceType MediaType
+  attempts     Int       @default(0)
+  lastError    String?
+  createdAt    DateTime  @default(now())
+  nextAttemptAt DateTime @default(now())
+  processedAt  DateTime?
+  lockedAt DateTime?
+
+  @@index([processedAt, nextAttemptAt])
+  @@index([lockedAt])
+  @@index([publicId])
+}
+
 
 model Amenity {
   id         String            @id @default(uuid())

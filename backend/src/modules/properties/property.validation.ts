@@ -22,6 +22,9 @@ export const createPropertySchema = z
         isFurnished: z.boolean().default(false),
       })
       .strict(),
+
+    params: z.object({}).strict(),
+    query: z.object({}).strict(),
   })
   .strict();
 
@@ -56,6 +59,8 @@ export const updatePropertySchema = z
       .refine((data) => Object.keys(data).length > 0, {
         message: "At least one property field must be provided",
       }),
+
+    query: z.object({}).strict(),
   })
   .strict();
 
@@ -72,6 +77,8 @@ export const updatePropertyAvailabilitySchema = z
         isAvailable: z.boolean(),
       })
       .strict(),
+
+    query: z.object({}).strict(),
   })
   .strict();
 
@@ -88,6 +95,8 @@ export const assignPropertyAmenitySchema = z
         amenityId: z.uuid("Invalid amenity ID"),
       })
       .strict(),
+
+    query: z.object({}).strict(),
   })
   .strict();
 
@@ -98,6 +107,9 @@ export const getPropertyAmenitiesSchema = z
         propertyId: z.uuid("Invalid property ID"),
       })
       .strict(),
+
+    body: z.object({}).strict(),
+    query: z.object({}).strict(),
   })
   .strict();
 
@@ -109,10 +121,13 @@ export const removePropertyAmenitySchema = z
         amenityId: z.uuid("Invalid amenity ID"),
       })
       .strict(),
+
+    body: z.object({}).strict(),
+    query: z.object({}).strict(),
   })
   .strict();
 
-  export const deletePropertySchema = z
+export const deletePropertySchema = z
   .object({
     params: z
       .object({
@@ -126,7 +141,7 @@ export const removePropertyAmenitySchema = z
   })
   .strict();
 
-  export const getRecentlyDeletedPropertiesSchema = z
+export const getRecentlyDeletedPropertiesSchema = z
   .object({
     query: z
       .object({
@@ -141,7 +156,7 @@ export const removePropertyAmenitySchema = z
   })
   .strict();
 
-  export const restorePropertySchema = z
+export const restorePropertySchema = z
   .object({
     params: z
       .object({

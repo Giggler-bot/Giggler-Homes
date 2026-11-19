@@ -296,6 +296,11 @@ export async function softDeleteProperty(propertyId: string) {
   return prisma.$transaction(async (tx) => {
     const deletedAt = new Date();
 
+    const permanentDeletionAt = new Date(
+      deletedAt.getTime() +
+        env.propertyRetentionDays * 24 * 60 * 60 * 1000,
+    );
+
     const propertyUpdate = await tx.property.updateMany({
       where: {
         id: propertyId,
@@ -303,6 +308,7 @@ export async function softDeleteProperty(propertyId: string) {
       },
       data: {
         deletedAt,
+        permanentDeletionAt,
       },
     });
 
@@ -337,7 +343,6 @@ export async function softDeleteProperty(propertyId: string) {
     });
   });
 }
-
 
 export async function getRecentlyDeletedProperties(
   ownerId: string,
@@ -376,13 +381,16 @@ export async function getRecentlyDeletedProperties(
   ]);
 
   const now = Date.now();
-  const retentionMilliseconds =
-    env.propertyRetentionDays * 24 * 60 * 60 * 1000;
 
   const recentlyDeletedProperties = properties.map((property) => {
-    const permanentDeletionAt = new Date(
-      property.deletedAt!.getTime() + retentionMilliseconds,
-    );
+    const permanentDeletionAt = property.permanentDeletionAt;
+
+    if (!permanentDeletionAt) {
+      throw new AppError(
+        "Property deletion deadline is missing",
+        500,
+      );
+    }
 
     const millisecondsRemaining =
       permanentDeletionAt.getTime() - now;
@@ -394,7 +402,6 @@ export async function getRecentlyDeletedProperties(
 
     return {
       ...property,
-      permanentDeletionAt,
       daysRemaining,
       isExpired: millisecondsRemaining <= 0,
     };
@@ -411,6 +418,7 @@ export async function getRecentlyDeletedProperties(
   };
 }
 
+
 export async function restoreProperty(propertyId: string) {
   return prisma.$transaction(async (tx) => {
     const property = await tx.property.findUnique({
@@ -420,6 +428,7 @@ export async function restoreProperty(propertyId: string) {
       select: {
         id: true,
         deletedAt: true,
+        permanentDeletionAt: true,
       },
     });
 
@@ -431,12 +440,14 @@ export async function restoreProperty(propertyId: string) {
       throw new AppError("This property is not deleted", 409);
     }
 
-    const permanentDeletionAt = new Date(
-      property.deletedAt.getTime() +
-        env.propertyRetentionDays * 24 * 60 * 60 * 1000,
-    );
+    if (!property.permanentDeletionAt) {
+      throw new AppError(
+        "Property deletion deadline is missing",
+        500,
+      );
+    }
 
-    if (Date.now() >= permanentDeletionAt.getTime()) {
+    if (Date.now() >= property.permanentDeletionAt.getTime()) {
       throw new AppError(
         "The restoration period has expired. This property can no longer be restored.",
         410,
@@ -447,9 +458,11 @@ export async function restoreProperty(propertyId: string) {
       where: {
         id: propertyId,
         deletedAt: property.deletedAt,
+        permanentDeletionAt: property.permanentDeletionAt,
       },
       data: {
         deletedAt: null,
+        permanentDeletionAt: null,
       },
     });
 
