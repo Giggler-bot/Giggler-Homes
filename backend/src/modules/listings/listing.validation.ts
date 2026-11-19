@@ -1,4 +1,4 @@
-import { property, z } from "zod";
+import { z } from "zod";
 
 const listingTypes = ["RENT", "SALE", "SHORT_STAY", "LEASE"] as const;
 
