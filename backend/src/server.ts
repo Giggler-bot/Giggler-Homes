@@ -41,6 +41,7 @@ function closeHttpServer(): Promise<void> {
   });
 }
 
+
 async function shutdown(signal: string): Promise<void> {
   if (isShuttingDown) return;
 
@@ -57,42 +58,45 @@ async function shutdown(signal: string): Promise<void> {
 
   forceExit.unref();
 
-  // Stop new scheduled executions and wait for active jobs.
-  // Stop HTTP traffic and wait for active requests.
-  const results = await Promise.allSettled([
-    stopPropertyCleanupJobs(),
-    closeHttpServer(),
-  ]);
+  try {
+    // Stop scheduled jobs and wait for active jobs.
+    // Stop HTTP traffic and wait for active requests.
+    const results = await Promise.allSettled([
+      stopPropertyCleanupJobs(),
+      closeHttpServer(),
+    ]);
 
-  const failedOperations = results.filter(
-    (result) => result.status === "rejected",
-  );
+    const failedOperations = results.filter(
+      (result) => result.status === "rejected",
+    );
 
-  if (failedOperations.length > 0) {
-    for (const result of failedOperations) {
-      if (result.status === "rejected") {
-        console.error("[Server] Shutdown operation failed:", result.reason);
+    if (failedOperations.length > 0) {
+      for (const result of failedOperations) {
+        if (result.status === "rejected") {
+          console.error(
+            "[Server] Shutdown operation failed:",
+            result.reason,
+          );
+        }
       }
+
+      process.exitCode = 1;
+      return;
     }
 
-    process.exitCode = 1;
-    return;
-  }
-
-  // Nothing should be using Prisma at this point.
-  try {
+    // Disconnect Prisma after all operations have stopped.
     await prisma.$disconnect();
+
     console.log("[Database] Prisma disconnected.");
+    console.log("[Server] Graceful shutdown completed.");
   } catch (error) {
-    console.error("[Database] Failed to disconnect Prisma:", error);
+    console.error("[Server] Unexpected shutdown error:", error);
     process.exitCode = 1;
-    return;
+  } finally {
+    clearTimeout(forceExit);
   }
-
-  console.log("[Server] Graceful shutdown completed.");
-
-  clearTimeout(forceExit);
 }
+
 
 server.on("error", (error) => {
   console.error("[Server] Server error:", error);
