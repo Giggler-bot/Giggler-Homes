@@ -3,7 +3,6 @@ import type { NextFunction, Request, Response } from "express";
 import { registerSchema } from "./auth.validation.js";
 import { registerUser, loginUser, getCurrentUser } from "./auth.services.js";
 import { loginSchema } from "./auth.validation.js";
-import { success } from "zod";
 import { AppError } from "../../common/errors/AppError.js";
 
 export async function registerController(

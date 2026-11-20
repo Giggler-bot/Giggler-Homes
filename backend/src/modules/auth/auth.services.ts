@@ -54,22 +54,25 @@ export async function loginUser(input: LoginInput) {
     },
   });
 
-  if (!user) {
+  // Reject unknown or deleted accounts.
+  if (!user || user.deletedAt) {
     throw new AppError("Invalid email or password", 401);
   }
 
-  if(user.status !== "ACTIVE") {
-    throw new AppError("This account is not active", 403);
-  }
-
+  // Verify credentials before revealing account status.
   const isPasswordValid = await comparePasswords(
     input.password,
     user.passwordHash,
   );
 
-  if(!isPasswordValid) {
+  if (!isPasswordValid) {
     throw new AppError("Invalid email or password", 401);
-  };
+  }
+
+  // Check account status only after successful authentication.
+  if (user.status !== "ACTIVE") {
+    throw new AppError("This account is not active", 403);
+  }
 
   const accessToken = generateAccessToken({
     userId: user.id,
@@ -77,21 +80,20 @@ export async function loginUser(input: LoginInput) {
   });
 
   return {
-    accessToken, 
+    accessToken,
     user: {
-        id: user.id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        status: user.status,
-        isEmailVerified: user.isEmailVerified,
-        isPhoneVerified: user.isPhoneVerified,
-        createdAt: user.createdAt,
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      status: user.status,
+      isEmailVerified: user.isEmailVerified,
+      isPhoneVerified: user.isPhoneVerified,
+      createdAt: user.createdAt,
     },
   };
-
 }
 
 export async function getCurrentUser( userId: string, ) {
