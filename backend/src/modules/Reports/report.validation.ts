@@ -58,6 +58,8 @@ export const listReportsSchema = z.object({
   }),
 });
 
+export type ListReportsQuery = z.infer<typeof listReportsSchema>["query"];
+
 const moderationActionTypes = [
   "SUSPEND_LISTING",
   "REMOVE_LISTING",
@@ -82,3 +84,4 @@ export const createModerationActionSchema = z.object({
       .max(1000, "Reason must not exceed 1000 characters"),
   }),
 });
+

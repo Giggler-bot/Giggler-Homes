@@ -8,89 +8,119 @@ export const createInquiry = async (
   senderId: string,
   message: string,
 ) => {
-  const listing = await prisma.listing.findUnique({
-    where: {
-      id: listingId,
-    },
-    include: {
-      property: {
-        select: {
-          ownerId: true,
-          deletedAt: true,
-        },
-      },
-    },
-  });
-
-  if (!listing) {
-    throw new AppError("Listing not found", 404);
-  }
-
-  if (listing.deletedAt || listing.property.deletedAt) {
-    throw new AppError("This listing is no longer available", 404);
-  }
-
-  if (listing.status !== "ACTIVE") {
-    throw new AppError("Inquiries can only be sent for active listings", 404);
-  }
-
-  const ownerId = listing.property.ownerId;
-
-  if (ownerId === senderId) {
-    throw new AppError(
-      "You cannot send an inquiry about your own listing",
-      403,
-    );
-  }
-
-  const existingInquiry = await prisma.inquiry.findFirst({
-    where: {
-      listingId,
-      senderId,
-      status: InquiryStatus.OPEN,
-    },
-  });
-
-  if (existingInquiry) {
-    throw new AppError(
-      "You already have an open inquiry for this listing",
-      409,
-    );
-  }
-
   try {
-    return await prisma.inquiry.create({
-      data: {
-        listingId,
-        senderId,
-        ownerId,
-        message,
-      },
-      include: {
-        listing: {
-          select: {
-            id: true,
-            listingType: true,
-            price: true,
+    return await prisma.$transaction(async (tx) => {
+      // Get the property reference so we can lock in a consistent order.
+      const listingReference = await tx.listing.findUnique({
+        where: { id: listingId },
+        select: { propertyId: true },
+      });
+
+      if (!listingReference) {
+        throw new AppError("Listing not found", 404);
+      }
+
+      // Lock the property first, matching the property deletion process.
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "Property"
+        WHERE "id" = ${listingReference.propertyId}
+        FOR UPDATE
+      `;
+
+      // Then lock the listing.
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "Listing"
+        WHERE "id" = ${listingId}
+        FOR UPDATE
+      `;
+
+      // Re-read the current state after acquiring both locks.
+      const listing = await tx.listing.findUnique({
+        where: { id: listingId },
+        include: {
+          property: {
+            select: {
+              ownerId: true,
+              deletedAt: true,
+            },
           },
         },
-        sender: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
+      });
+
+      if (!listing) {
+        throw new AppError("Listing not found", 404);
+      }
+
+      if (listing.deletedAt || listing.property.deletedAt) {
+        throw new AppError("This listing is no longer available", 404);
+      }
+
+      if (listing.status !== "ACTIVE") {
+        throw new AppError(
+          "Inquiries can only be sent for active listings",
+          404,
+        );
+      }
+
+      const ownerId = listing.property.ownerId;
+
+      if (ownerId === senderId) {
+        throw new AppError(
+          "You cannot send an inquiry about your own listing",
+          403,
+        );
+      }
+
+      const existingInquiry = await tx.inquiry.findFirst({
+        where: {
+          listingId,
+          senderId,
+          status: InquiryStatus.OPEN,
+        },
+      });
+
+      if (existingInquiry) {
+        throw new AppError(
+          "You already have an open inquiry for this listing",
+          409,
+        );
+      }
+
+      return tx.inquiry.create({
+        data: {
+          listingId,
+          senderId,
+          ownerId,
+          message,
+        },
+        include: {
+          listing: {
+            select: {
+              id: true,
+              listingType: true,
+              price: true,
+            },
+          },
+          sender: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          owner: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
           },
         },
-        owner: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-      },
+      });
     });
   } catch (error) {
     if (

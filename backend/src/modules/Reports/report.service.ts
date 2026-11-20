@@ -3,6 +3,7 @@ import { AppError } from "../../common/errors/AppError.js";
 import {
   ReportStatus,
   ListingReportReason,
+  ListingStatus,
 } from "../../generated/prisma/enums.js";
 
 const DAILY_REPORT_LIMIT = 10;
@@ -35,8 +36,12 @@ export const createReport = async (
     where: { id: listingId },
     select: {
       id: true,
+      status: true,
       property: {
-        select: { ownerId: true },
+        select: {
+          ownerId: true,
+          deletedAt: true,
+        },
       },
     },
   });
@@ -45,10 +50,13 @@ export const createReport = async (
     throw new AppError("Listing not found", 404);
   }
 
+  if (listing.status !== ListingStatus.ACTIVE || listing.property.deletedAt) {
+    throw new AppError("Only active listings can be reported", 409);
+  }
+
   if (listing.property.ownerId === reporterId) {
     throw new AppError("You cannot report your own listing", 400);
   }
-
   // Use UTC calendar-day boundaries.
   const now = new Date();
   const startOfDay = new Date(

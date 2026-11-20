@@ -1,13 +1,17 @@
-
 import { Request, Response } from "express";
 import * as reportService from "./report.service.js";
-import { createModerationAction, getModerationHistory } from "./moderation.services.js";
+import {
+  createModerationAction,
+  getModerationHistory,
+} from "./moderation.services.js";
 import { AppError } from "../../common/errors/AppError.js";
 import {
   ListingReportReason,
   ReportStatus,
   ModerationActionType,
 } from "../../generated/prisma/enums.js";
+
+import type { ListReportsQuery } from "./report.validation.js";
 
 export async function createReportController(
   req: Request<{ listingId: string }>,
@@ -33,21 +37,14 @@ export async function createReportController(
   });
 }
 
-export async function getMyReportsController(
-  req: Request,
-  res: Response,
-) {
+export async function getMyReportsController(req: Request, res: Response) {
   if (!req.user) {
     throw new AppError("Authentication required", 401);
   }
 
-  const { page, limit } = req.query;
+  const { page, limit } = req.query as unknown as ListReportsQuery;
 
-  const result = await reportService.getMyReports(
-    req.user.id,
-    Number(page),
-    Number(limit),
-  );
+  const result = await reportService.getMyReports(req.user.id, page, limit);
 
   res.status(200).json({
     success: true,
@@ -80,11 +77,12 @@ export async function getAdminReportQueueController(
   req: Request,
   res: Response,
 ) {
-  const { page, limit, status, reason } = req.query;
+  const { page, limit, status, reason } =
+    req.query as unknown as ListReportsQuery;
 
   const result = await reportService.getAdminReportQueue(
-    Number(page),
-    Number(limit),
+    page,
+    limit,
     status as ReportStatus | undefined,
     reason as ListingReportReason | undefined,
   );
@@ -204,10 +202,7 @@ export async function getModerationHistoryController(
     throw new AppError("Authentication required", 401);
   }
 
-  const history = await getModerationHistory(
-    req.params.reportId,
-    req.user.id,
-  );
+  const history = await getModerationHistory(req.params.reportId, req.user.id);
 
   res.status(200).json({
     success: true,
