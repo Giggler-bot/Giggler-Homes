@@ -178,10 +178,24 @@ export async function updateMedia(
     where: {
       id: mediaId,
     },
+    include: {
+      property: {
+        select: {
+          deletedAt: true,
+        },
+      },
+    },
   });
 
   if (!media || media.deletedAt) {
     throw new AppError("Media not found", 404);
+  }
+
+  if (media.property.deletedAt) {
+    throw new AppError(
+      "Cannot update media belonging to a deleted property",
+      400,
+    );
   }
 
   if (data.isPrimary === true) {
@@ -228,13 +242,27 @@ export async function deleteMedia(mediaId: string) {
     where: {
       id: mediaId,
     },
+    include: {
+      property: {
+        select: {
+          deletedAt: true,
+        },
+      },
+    },
   });
 
   if (!media || media.deletedAt) {
     throw new AppError("Media not found", 404);
   }
 
-  const deletedMedia = await prisma.media.update({
+  if (media.property.deletedAt) {
+    throw new AppError(
+      "Cannot delete media belonging to a deleted property",
+      400,
+    );
+  }
+
+  return prisma.media.update({
     where: {
       id: mediaId,
     },
@@ -243,9 +271,8 @@ export async function deleteMedia(mediaId: string) {
       isPrimary: false,
     },
   });
-
-  return deletedMedia;
 }
+
 
 export async function restoreMedia(mediaId: string) {
   const media = await prisma.media.findUnique({
