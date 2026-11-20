@@ -122,7 +122,7 @@ export const getOwnershipVerification = async (
     throw new AppError("Ownership verification not found", 404);
   }
 
-if (!isAdmin && verification.submittedById !== userId) {
+if (!isAdmin && verification.property.ownerId !== userId) {
     throw new AppError(
       "You are not authorized to view this ownership verification",
       403,
