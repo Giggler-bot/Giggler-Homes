@@ -21,8 +21,9 @@ import {
 
 export async function createListingController(req: Request, res: Response) {
   const listing = await createListing({
+     ...req.body,
     userId: req.user!.id,
-    ...req.body,
+
   });
 
   res.status(201).json({

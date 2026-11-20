@@ -10,71 +10,82 @@ export const createOwnershipVerification = async (
   submittedById: string,
   proofType: VerificationDocumentType,
 ) => {
-  const property = await prisma.property.findUnique({
-    where: {
-      id: propertyId,
-    },
-    select: {
-      id: true,
-      ownerId: true,
-      deletedAt: true,
-    },
-  });
+  return prisma.$transaction(async (tx) => {
+    // Lock the property row to prevent concurrent soft deletion.
+    const properties = await tx.$queryRaw<
+      {
+        id: string;
+        ownerId: string;
+        deletedAt: Date | null;
+      }[]
+    >`
+      SELECT "id", "ownerId", "deletedAt"
+      FROM "Property"
+      WHERE "id" = ${propertyId}
+      FOR UPDATE
+    `;
 
-  if (!property) {
-    throw new AppError("Property not found", 404);
-  }
+    const property = properties[0];
 
-  if (property.deletedAt) {
-    throw new AppError(
-      "Cannot submit ownership verification for a deleted property",
-      404,
-    );
-  }
+    if (!property) {
+      throw new AppError("Property not found", 404);
+    }
 
-  if (property.ownerId !== submittedById) {
-    throw new AppError(
-      "You are not authorized to submit ownership verification for this property",
-      403,
-    );
-  }
-
-  const existingVerification = await prisma.ownershipVerification.findUnique({
-    where: { propertyId },
-  });
-
-  if (existingVerification) {
-    if (existingVerification.status === VerificationStatus.PENDING) {
+    if (property.deletedAt) {
       throw new AppError(
-        "Ownership verification is already pending review",
-        409,
+        "Cannot submit ownership verification for a deleted property",
+        404,
       );
     }
 
-    if (existingVerification.status === VerificationStatus.VERIFIED) {
-      throw new AppError("This property is already ownership verified", 409);
+    if (property.ownerId !== submittedById) {
+      throw new AppError(
+        "You are not authorized to submit ownership verification for this property",
+        403,
+      );
     }
 
-    return prisma.ownershipVerification.update({
-      where: { propertyId },
+    const existingVerification =
+      await tx.ownershipVerification.findUnique({
+        where: { propertyId },
+      });
+
+    if (existingVerification) {
+      if (existingVerification.status === VerificationStatus.PENDING) {
+        throw new AppError(
+          "Ownership verification is already pending review",
+          409,
+        );
+      }
+
+      if (existingVerification.status === VerificationStatus.VERIFIED) {
+        throw new AppError(
+          "This property is already ownership verified",
+          409,
+        );
+      }
+
+      return tx.ownershipVerification.update({
+        where: { propertyId },
+        data: {
+          submittedById,
+          proofType,
+          status: VerificationStatus.PENDING,
+          reviewedAt: null,
+          reviewedBy: null,
+          rejectionReason: null,
+        },
+      });
+    }
+
+    return tx.ownershipVerification.create({
       data: {
+        propertyId,
         submittedById,
         proofType,
         status: VerificationStatus.PENDING,
-        reviewedAt: null,
-        reviewedBy: null,
-        rejectionReason: null,
       },
     });
-  }
-
-  return prisma.ownershipVerification.create({
-    data: {
-      propertyId,
-      submittedById,
-      proofType,
-      status: VerificationStatus.PENDING,
-    },
   });
 };
 

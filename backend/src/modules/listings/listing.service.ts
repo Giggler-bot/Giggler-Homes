@@ -30,45 +30,57 @@ export async function createListing(input: createListingInput) {
     expiresAt,
   } = input;
 
-  const property = await prisma.property.findUnique({
-    where: {
-      id: propertyId,
-    },
+  return prisma.$transaction(async (tx) => {
+    // Lock the property to serialize listing creation with soft deletion.
+    const properties = await tx.$queryRaw<
+      {
+        id: string;
+        ownerId: string;
+        deletedAt: Date | null;
+        isAvailable: boolean;
+      }[]
+    >`
+      SELECT "id", "ownerId", "deletedAt", "isAvailable"
+      FROM "Property"
+      WHERE "id" = ${propertyId}
+      FOR UPDATE
+    `;
+
+    const property = properties[0];
+
+    if (!property) {
+      throw new AppError("Property not found", 404);
+    }
+
+    if (property.deletedAt) {
+      throw new AppError("This property is no longer available", 404);
+    }
+
+    if (property.ownerId !== userId) {
+      throw new AppError(
+        "You are not authorized to create a listing for this property",
+        403,
+      );
+    }
+
+    if (!property.isAvailable) {
+      throw new AppError("This property is currently unavailable", 400);
+    }
+
+    return tx.listing.create({
+      data: {
+        propertyId,
+        listingType,
+        price,
+        currency,
+        rentPeriod,
+        negotiable,
+        expiresAt,
+      },
+    });
   });
-
-  if (!property) {
-    throw new AppError("Property not found", 404);
-  }
-
-  if (property.deletedAt) {
-    throw new AppError("This property is no longer available", 404);
-  }
-
-  if (property.ownerId !== userId) {
-    throw new AppError(
-      "You are not authorized to create a listing for this property",
-      403,
-    );
-  }
-
-  if (!property.isAvailable) {
-    throw new AppError("This property is currently unavailable", 400);
-  }
-
-  const listing = await prisma.listing.create({
-    data: {
-      propertyId,
-      listingType,
-      price,
-      currency,
-      rentPeriod,
-      negotiable,
-      expiresAt,
-    },
-  });
-
-  return listing;
 }
+
 
 type GetActiveListingsFilters = {
   page: number;

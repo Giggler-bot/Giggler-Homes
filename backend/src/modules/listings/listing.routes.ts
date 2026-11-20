@@ -43,7 +43,7 @@ listingRouter.get(
 listingRouter.post(
   "/",
   authenticate,
-  authorizeRoles("ADMIN", "AGENCY", "HOTEL", "OWNER"),
+  authorizeRoles("AGENCY", "HOTEL", "OWNER"),
   validateRequest(createListingSchema),
   createListingController,
 );
