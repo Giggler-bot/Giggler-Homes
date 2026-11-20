@@ -1,3 +1,4 @@
+
 import express from "express";
 import cors from "cors";
 import compression from "compression";
@@ -25,70 +26,95 @@ import adminReportRouter from "./modules/reports/report.admin.routes.js";
 
 const app = express();
 
-// security middleware
+// -----------------------------------------------------------------------------
+// Security middleware
+// -----------------------------------------------------------------------------
+
 app.use(helmet());
 
 app.use(
-    cors({
-        origin: env.frontendUrl,
-    }),
+  cors({
+    origin: env.frontendUrl,
+  }),
 );
+
+// -----------------------------------------------------------------------------
+// Performance and logging
+// -----------------------------------------------------------------------------
 
 app.use(compression());
 
-// logging middleware
-app.use(morgan("dev"));
+app.use(
+  morgan(env.nodeEnv === "production" ? "combined" : "dev"),
+);
 
-app.use(express.json());
+// -----------------------------------------------------------------------------
+// Request parsing
+// -----------------------------------------------------------------------------
 
+app.use(express.json({ limit: "1mb" }));
+
+// -----------------------------------------------------------------------------
+// Health checks
+// -----------------------------------------------------------------------------
+
+// API liveness check
 app.get("/api/v1/health", (req, res) => {
-    res.status(200).json({
-        status: "success",
-        message: "Giggler Homes Api is running successfully",
-        env: env.nodeEnv,
-    });
+  res.status(200).json({
+    success: true,
+    message: "Giggler Homes API is running",
+  });
 });
 
-app.get("/api/v1/health/database", async(req, res, next) => {
-    try {
-        await prisma.$queryRaw`SELECT 1`;
+// Database readiness check
+app.get("/api/v1/health/database", async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
 
-        res.status(200).json({
-            success: true,
-            message: "Database connection is working",
-        });
-    } catch (error) {
-        next(error);
-    }
-})
+    res.status(200).json({
+      success: true,
+      message: "Database connection is working",
+    });
+  } catch {
+    res.status(503).json({
+      success: false,
+      message: "Database connection is unavailable",
+    });
+  }
+});
 
-app.use('/api/v1/auth', authRouter);
+// -----------------------------------------------------------------------------
+// API routes
+// -----------------------------------------------------------------------------
 
-app.use('/api/v1/admin', adminRouter);
+app.use("/api/v1/auth", authRouter);
 
-app.use('/api/v1/properties', propertyRouter);
+app.use("/api/v1/admin", adminRouter);
 
-app.use('/api/v1/listings', listingRouter);
+app.use("/api/v1/properties", propertyRouter);
 
-app.use('/api/v1/media', mediaRouter);
+app.use("/api/v1/listings", listingRouter);
 
-app.use('/api/v1/amenities', amenityRouter);
+app.use("/api/v1/media", mediaRouter);
 
-app.use('/api/v1/favorites', favoriteRouter);
+app.use("/api/v1/amenities", amenityRouter);
 
-app.use('/api/v1/inquiries', inquiryRouter);
+app.use("/api/v1/favorites", favoriteRouter);
 
-app.use('/api/v1/verifications', verificationRouter);
+app.use("/api/v1/inquiries", inquiryRouter);
 
-app.use('/api/v1/reports', reportRouter);
+app.use("/api/v1/verifications", verificationRouter);
 
-app.use('/api/v1/admin/reports', adminReportRouter)
+app.use("/api/v1/reports", reportRouter);
 
+app.use("/api/v1/admin/reports", adminReportRouter);
 
-// Handles routes that are not found
+// -----------------------------------------------------------------------------
+// 404 and global error handling
+// -----------------------------------------------------------------------------
+
 app.use(notFound);
 
-// Handles errors
 app.use(errorHandler);
 
 export default app;
