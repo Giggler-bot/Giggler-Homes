@@ -54,62 +54,60 @@ export async function processPendingMediaCleanup() {
 
   let processedCount = 0;
   let failedCount = 0;
+  
+for (const asset of assets) {
+  try {
+    await deleteMediaAsset(
+      asset.publicId,
+      asset.resourceType === "VIDEO" ? "video" : "image",
+    );
+  } catch (error) {
+    const nextAttempt = asset.attempts + 1;
+    const retryDelay = getRetryDelay(nextAttempt);
 
-  for (const asset of assets) {
-    try {
-      await deleteMediaAsset(
-        asset.publicId,
-        asset.resourceType === "VIDEO" ? "video" : "image",
-      );
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "Unknown Cloudinary deletion error";
 
-      await prisma.mediaAssetCleanup.update({
-        where: {
-          id: asset.id,
-        },
-        data: {
-          processedAt: new Date(),
-          lockedAt: null,
-          lastError: null,
-        },
-      });
+    await prisma.mediaAssetCleanup.update({
+      where: { id: asset.id },
+      data: {
+        attempts: { increment: 1 },
+        lockedAt: null,
+        lastError: errorMessage.slice(0, 1000),
+        nextAttemptAt: new Date(Date.now() + retryDelay),
+      },
+    });
 
-      processedCount++;
-    } catch (error) {
-      const nextAttempt = asset.attempts + 1;
+    failedCount++;
 
-      const retryDelay = getRetryDelay(nextAttempt);
+    console.error(
+      `Cloudinary cleanup failed for ${asset.publicId}`,
+      error,
+    );
 
-      const nextAttemptAt = new Date(
-        Date.now() + retryDelay,
-      );
-
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Unknown Cloudinary deletion error";
-
-      await prisma.mediaAssetCleanup.update({
-        where: {
-          id: asset.id,
-        },
-        data: {
-          attempts: {
-            increment: 1,
-          },
-          lockedAt: null,
-          lastError: errorMessage.slice(0, 1000),
-          nextAttemptAt,
-        },
-      });
-
-      failedCount++;
-
-      console.error(
-        `Cloudinary cleanup failed for ${asset.publicId}`,
-        error,
-      );
-    }
+    continue;
   }
+
+  try {
+    await prisma.mediaAssetCleanup.update({
+      where: { id: asset.id },
+      data: {
+        processedAt: new Date(),
+        lockedAt: null,
+        lastError: null,
+      },
+    });
+
+    processedCount++;
+  } catch (error) {
+    console.error(
+      `Cloudinary deletion succeeded, but cleanup status update failed for ${asset.publicId}`,
+      error,
+    );
+  }
+}
 
   return {
     claimedCount: assets.length,
