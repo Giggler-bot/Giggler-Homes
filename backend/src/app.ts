@@ -1,4 +1,3 @@
-
 import express from "express";
 import cors from "cors";
 import compression from "compression";
@@ -45,7 +44,10 @@ app.use(
 app.use(compression());
 
 app.use(
-  morgan(env.nodeEnv === "production" ? "combined" : "dev"),
+  morgan(env.nodeEnv === "production" ? "combined" : "dev", {
+    skip: (req) =>
+      req.path === "/api/v1/health" || req.path === "/api/v1/health/database",
+  }),
 );
 
 // -----------------------------------------------------------------------------
