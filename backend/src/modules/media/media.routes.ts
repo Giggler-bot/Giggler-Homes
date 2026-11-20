@@ -27,6 +27,7 @@ import {
 } from "./media.middleware.js";
 import { uploadMediaFile } from "../../middleware/upload.middleware.js";
 import { validateMediaFile } from "../../middleware/validateMediaFile.js";
+import { uploadRateLimiter } from "../../middleware/uploadRateLimiter.js";
 
 const mediaRouter = Router();
 
@@ -34,6 +35,7 @@ mediaRouter.post(
   "/",
   authenticate,
   authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
+  uploadRateLimiter,
   uploadMediaFile.single("file"),
   validateRequest(createMediaSchema),
   authorizeMediaPropertyOwner(),
