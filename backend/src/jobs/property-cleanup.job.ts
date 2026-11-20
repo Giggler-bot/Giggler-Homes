@@ -3,7 +3,7 @@ import cron from "node-cron";
 
 import { purgeExpiredProperties } from "../modules/properties/property-cleanup.service.js";
 
-import { processPendingMediaCleanup } from "../modules/properties/media-asset-cleanup.service.js";
+import { processPendingMediaCleanup } from "../modules/media/media-asset-cleanup.service.js";
 
 export function startPropertyCleanupJobs() {
   // Permanently purge eligible properties every day at 02:00 UTC.
