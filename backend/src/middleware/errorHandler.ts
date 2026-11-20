@@ -43,6 +43,8 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
       success: false,
       message: "Invalid JSON request body",
     });
+
+    return;
   }
 
   // ---------------------------------------------------------------------------
