@@ -17,6 +17,7 @@ export async function createMediaController(req: Request, res: Response) {
 
   const media = await createMedia({
     ...req.body,
+    propertyId: req.params.propertyId as string,
     file: req.file,
   });
   res.status(201).json({

@@ -1,4 +1,3 @@
-
 import type { RequestHandler } from "express";
 import { AppError } from "../../common/errors/AppError.js";
 import { prisma } from "../../lib/prisma.js";
@@ -16,9 +15,15 @@ export function authorizeMediaPropertyOwner(): RequestHandler {
         return next();
       }
 
+      const propertyId = req.params.propertyId;
+
+      if (typeof propertyId !== "string") {
+        throw new AppError("Invalid property ID", 400);
+      }
+
       const property = await prisma.property.findUnique({
         where: {
-          id: req.body.propertyId,
+          id: propertyId,
         },
         select: {
           ownerId: true,
@@ -48,10 +53,7 @@ export function authorizeMediaPropertyOwner(): RequestHandler {
   };
 }
 
-async function authorizeMediaOwnership(
-  mediaId: string,
-  userId: string,
-) {
+async function authorizeMediaOwnership(mediaId: string, userId: string) {
   const media = await prisma.media.findUnique({
     where: {
       id: mediaId,
@@ -70,10 +72,7 @@ async function authorizeMediaOwnership(
   }
 
   if (media.property.ownerId !== userId) {
-    throw new AppError(
-      "You are not authorized to perform this action",
-      403,
-    );
+    throw new AppError("You are not authorized to perform this action", 403);
   }
 }
 

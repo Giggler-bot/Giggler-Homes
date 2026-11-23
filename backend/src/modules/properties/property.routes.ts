@@ -29,8 +29,21 @@ import {
   restorePropertySchema,
 } from "./property.validation.js";
 
-import { getPropertyMediaController } from "../media/media.controller.js";
-import { getPropertyMediaSchema } from "../media/media.validation.js";
+import {
+  createMediaController,
+  getPropertyMediaController,
+} from "../media/media.controller.js";
+
+import {
+  createMediaParamsSchema,
+  createMediaBodySchema,
+  getPropertyMediaSchema,
+} from "../media/media.validation.js";
+
+import { authorizeMediaPropertyOwner } from "../media/media.middleware.js";
+import { uploadRateLimiter } from "../../middleware/uploadRateLimiter.js";
+import { uploadMediaFile } from "../../middleware/upload.middleware.js";
+import { validateMediaFile } from "../../middleware/validateMediaFile.js";
 
 const propertyRouter = Router();
 
@@ -40,6 +53,19 @@ propertyRouter.post(
   authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
   validateRequest(createPropertySchema),
   createPropertyController,
+);
+
+propertyRouter.post(
+  "/:propertyId/media",
+  authenticate,
+  authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
+  validateRequest(createMediaParamsSchema),
+  authorizeMediaPropertyOwner(),
+  uploadRateLimiter,
+  uploadMediaFile.single("file"),
+  validateRequest(createMediaBodySchema),
+  validateMediaFile,
+  createMediaController,
 );
 
 propertyRouter.patch(

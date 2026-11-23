@@ -2,52 +2,26 @@ import { Router } from "express";
 import { validateRequest } from "../../middleware/validateRequest.js";
 
 import {
-  createMediaSchema,
   deleteMediaSchema,
   getMediaByIdSchema,
-  getPropertyMediaSchema,
   updateMediaSchema,
-  restoreMediaSchema
+  restoreMediaSchema,
 } from "./media.validation.js";
 import { authenticate } from "../../middleware/authenticate.js";
 import { authorizeRoles } from "../../middleware/authorizeRoles.js";
 import {
-  createMediaController,
   deleteMediaController,
   getMediaByIdController,
-  getPropertyMediaController,
- updateMediaController,
+  updateMediaController,
   restoreMediaController,
 } from "./media.controller.js";
 import {
   authorizeMediaDelete,
-  authorizeMediaPropertyOwner,
   authorizeMediaRestore,
   authorizeMediaUpdate,
 } from "./media.middleware.js";
-import { uploadMediaFile } from "../../middleware/upload.middleware.js";
-import { validateMediaFile } from "../../middleware/validateMediaFile.js";
-import { uploadRateLimiter } from "../../middleware/uploadRateLimiter.js";
 
 const mediaRouter = Router();
-
-mediaRouter.post(
-  "/",
-  authenticate,
-  authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
-  uploadRateLimiter,
-  uploadMediaFile.single("file"),
-  validateRequest(createMediaSchema),
-  authorizeMediaPropertyOwner(),
-  validateMediaFile,
-  createMediaController,
-);
-
-mediaRouter.get(
-  "/property/:propertyId",
-  validateRequest(getPropertyMediaSchema),
-  getPropertyMediaController,
-);
 
 mediaRouter.get(
   "/:mediaId",
@@ -61,7 +35,7 @@ mediaRouter.patch(
   authorizeRoles("OWNER", "AGENCY", "HOTEL", "ADMIN"),
   validateRequest(updateMediaSchema),
   authorizeMediaUpdate(),
- updateMediaController,
+  updateMediaController,
 );
 
 mediaRouter.delete(

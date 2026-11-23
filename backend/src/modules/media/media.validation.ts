@@ -1,10 +1,17 @@
 
 import { z } from "zod";
 
-export const createMediaSchema = z.object({
-  body: z
+export const createMediaParamsSchema = z.object({
+  params: z
     .object({
       propertyId: z.uuid("Invalid property ID"),
+    })
+    .strict(),
+});
+
+export const createMediaBodySchema = z.object({
+  body: z
+    .object({
       title: z.string().trim().min(1).max(255).optional(),
       altText: z.string().trim().min(1).max(255).optional(),
       sortOrder: z.preprocess(
