@@ -2,7 +2,13 @@ import { prisma } from "../../lib/prisma.js";
 import {
   VerificationStatus,
   VerificationDocumentType,
+  VerificationAuditAction,
+  VerificationAuditActorType,
+  VerificationAuditKind,
+  VerificationAuditReason,
 } from "../../generated/prisma/enums.js";
+import { createVerificationAuditLog } from "../../services/verification-audit.service.js";
+
 import { AppError } from "../../common/errors/AppError.js";
 
 export const createOwnershipVerification = async (
@@ -45,10 +51,9 @@ export const createOwnershipVerification = async (
       );
     }
 
-    const existingVerification =
-      await tx.ownershipVerification.findUnique({
-        where: { propertyId },
-      });
+    const existingVerification = await tx.ownershipVerification.findUnique({
+      where: { propertyId },
+    });
 
     if (existingVerification) {
       if (existingVerification.status === VerificationStatus.PENDING) {
@@ -59,10 +64,7 @@ export const createOwnershipVerification = async (
       }
 
       if (existingVerification.status === VerificationStatus.VERIFIED) {
-        throw new AppError(
-          "This property is already ownership verified",
-          409,
-        );
+        throw new AppError("This property is already ownership verified", 409);
       }
 
       return tx.ownershipVerification.update({
@@ -133,7 +135,7 @@ export const getOwnershipVerification = async (
     throw new AppError("Ownership verification not found", 404);
   }
 
-if (!isAdmin && verification.property.ownerId !== userId) {
+  if (!isAdmin && verification.property.ownerId !== userId) {
     throw new AppError(
       "You are not authorized to view this ownership verification",
       403,
@@ -146,38 +148,68 @@ if (!isAdmin && verification.property.ownerId !== userId) {
 export const approveOwnershipVerification = async (
   verificationId: string,
   adminId: string,
+  ipAddress: string | null,
+  userAgent: string | null,
 ) => {
-  const result = await prisma.ownershipVerification.updateMany({
-    where: {
-      id: verificationId,
-      status: VerificationStatus.PENDING,
-    },
-    data: {
-      status: VerificationStatus.VERIFIED,
-      reviewedBy: adminId,
-      reviewedAt: new Date(),
-      rejectionReason: null,
-    },
-  });
-
-  if (result.count === 0) {
-    const verification = await prisma.ownershipVerification.findUnique({
-      where: { id: verificationId },
-      select: { id: true },
+  return prisma.$transaction(async (tx) => {
+    const result = await tx.ownershipVerification.updateMany({
+      where: {
+        id: verificationId,
+        status: VerificationStatus.PENDING,
+      },
+      data: {
+        status: VerificationStatus.VERIFIED,
+        reviewedBy: adminId,
+        reviewedAt: new Date(),
+        rejectionReason: null,
+      },
     });
 
-    if (!verification) {
-      throw new AppError("Ownership verification not found", 404);
+    if (result.count === 0) {
+      const verification = await tx.ownershipVerification.findUnique({
+        where: { id: verificationId },
+        select: { id: true },
+      });
+
+      if (!verification) {
+        throw new AppError("Ownership verification not found", 404);
+      }
+
+      throw new AppError(
+        "Only pending ownership verifications can be approved",
+        409,
+      );
     }
 
-    throw new AppError(
-      "Only pending ownership verifications can be approved",
-      409,
-    );
-  }
+    const verification = await tx.ownershipVerification.findUniqueOrThrow({
+      where: { id: verificationId },
+      include: {
+        property: {
+          select: {
+            ownerId: true,
+          },
+        },
+      },
+    });
 
-  return prisma.ownershipVerification.findUniqueOrThrow({
-    where: { id: verificationId },
+    await createVerificationAuditLog(
+      {
+        actorId: adminId,
+        actorType: VerificationAuditActorType.ADMIN,
+        subjectUserId: verification.property.ownerId,
+        verificationKind: VerificationAuditKind.OWNERSHIP,
+        verificationId: verification.id,
+        action: VerificationAuditAction.APPROVE,
+        reason: VerificationAuditReason.REVIEW,
+        ipAddress,
+        userAgent,
+      },
+      tx,
+    );
+
+    // Preserve the original response structure.
+    const { property, ...updatedVerification } = verification;
+    return updatedVerification;
   });
 };
 
@@ -185,38 +217,68 @@ export const rejectOwnershipVerification = async (
   verificationId: string,
   adminId: string,
   rejectionReason: string,
+  ipAddress: string | null,
+  userAgent: string | null,
 ) => {
-  const result = await prisma.ownershipVerification.updateMany({
-    where: {
-      id: verificationId,
-      status: VerificationStatus.PENDING,
-    },
-    data: {
-      status: VerificationStatus.REJECTED,
-      reviewedBy: adminId,
-      reviewedAt: new Date(),
-      rejectionReason,
-    },
-  });
-
-  if (result.count === 0) {
-    const verification = await prisma.ownershipVerification.findUnique({
-      where: { id: verificationId },
-      select: { id: true },
+  return prisma.$transaction(async (tx) => {
+    const result = await tx.ownershipVerification.updateMany({
+      where: {
+        id: verificationId,
+        status: VerificationStatus.PENDING,
+      },
+      data: {
+        status: VerificationStatus.REJECTED,
+        reviewedBy: adminId,
+        reviewedAt: new Date(),
+        rejectionReason,
+      },
     });
 
-    if (!verification) {
-      throw new AppError("Ownership verification not found", 404);
+    if (result.count === 0) {
+      const verification = await tx.ownershipVerification.findUnique({
+        where: { id: verificationId },
+        select: { id: true },
+      });
+
+      if (!verification) {
+        throw new AppError("Ownership verification not found", 404);
+      }
+
+      throw new AppError(
+        "Only pending ownership verifications can be rejected",
+        409,
+      );
     }
 
-    throw new AppError(
-      "Only pending ownership verifications can be rejected",
-      409,
-    );
-  }
+    const verification = await tx.ownershipVerification.findUniqueOrThrow({
+      where: { id: verificationId },
+      include: {
+        property: {
+          select: {
+            ownerId: true,
+          },
+        },
+      },
+    });
 
-  return prisma.ownershipVerification.findUniqueOrThrow({
-    where: { id: verificationId },
+    await createVerificationAuditLog(
+      {
+        actorId: adminId,
+        actorType: VerificationAuditActorType.ADMIN,
+        subjectUserId: verification.property.ownerId,
+        verificationKind: VerificationAuditKind.OWNERSHIP,
+        verificationId: verification.id,
+        action: VerificationAuditAction.REJECT,
+        reason: VerificationAuditReason.REVIEW,
+        ipAddress,
+        userAgent,
+      },
+      tx,
+    );
+
+    // Preserve the original response structure.
+    const { property, ...updatedVerification } = verification;
+    return updatedVerification;
   });
 };
 
@@ -287,62 +349,81 @@ export const getPendingOwnershipVerifications = async (
   };
 };
 
-
 export const getAdminOwnershipVerification = async (
   verificationId: string,
+  adminId: string,
+  ipAddress: string | null,
+  userAgent: string | null,
 ) => {
-  const verification = await prisma.ownershipVerification.findUnique({
-    where: {
-      id: verificationId,
-    },
-    include: {
-      property: {
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          ownerId: true,
-          location: {
-            select: {
-              id: true,
-              region: true,
-              district: true,
-              area: true,
-              landmark: true,
+  return prisma.$transaction(async (tx) => {
+    const verification = await tx.ownershipVerification.findUnique({
+      where: {
+        id: verificationId,
+      },
+      include: {
+        property: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            ownerId: true,
+            location: {
+              select: {
+                id: true,
+                region: true,
+                district: true,
+                area: true,
+                landmark: true,
+              },
             },
           },
         },
-      },
-      submittedBy: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          phone: true,
+        submittedBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+          },
+        },
+        documents: {
+          select: {
+            id: true,
+            docType: true,
+            format: true,
+            uploadedAt: true,
+          },
+        },
+        reviewer: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
         },
       },
-      documents: {
-        select: {
-          id: true,
-          docType: true,
-          format: true,
-          uploadedAt: true,
-        },
+    });
+
+    if (!verification) {
+      throw new AppError("Ownership verification not found", 404);
+    }
+
+    await createVerificationAuditLog(
+      {
+        actorId: adminId,
+        actorType: VerificationAuditActorType.ADMIN,
+        subjectUserId: verification.property.ownerId,
+        verificationKind: VerificationAuditKind.OWNERSHIP,
+        verificationId: verification.id,
+        action: VerificationAuditAction.VIEW_DETAILS,
+        reason: VerificationAuditReason.REVIEW,
+        ipAddress,
+        userAgent,
       },
-      reviewer: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-        },
-      },
-    },
+      tx,
+    );
+
+    return verification;
   });
-
-  if (!verification) {
-    throw new AppError("Ownership verification not found", 404);
-  }
-
-  return verification;
 };

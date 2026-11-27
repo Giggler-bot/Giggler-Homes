@@ -1,3 +1,4 @@
+
 import { prisma } from "../../lib/prisma.js";
 
 const CLEANUP_BATCH_SIZE = 50;
@@ -6,10 +7,33 @@ const CLEANUP_BATCH_SIZE = 50;
 const CLEANUP_LOCK_NAMESPACE = 681942;
 const CLEANUP_LOCK_ID = 30;
 
+function addUtcMonths(date: Date, months: number): Date {
+  const result = new Date(date);
+  const originalDay = result.getUTCDate();
+
+  result.setUTCDate(1);
+  result.setUTCMonth(result.getUTCMonth() + months);
+
+  const lastDay = new Date(
+    Date.UTC(
+      result.getUTCFullYear(),
+      result.getUTCMonth() + 1,
+      0,
+    ),
+  ).getUTCDate();
+
+  result.setUTCDate(Math.min(originalDay, lastDay));
+
+  return result;
+}
+
 export async function purgeExpiredProperties() {
   const now = new Date();
+  const retentionExpiresAt = addUtcMonths(now, 12);
 
   // Only select expired properties without protected records.
+  // Favorites and inquiries do not block permanent deletion.
+  // Only unresolved reports block permanent deletion.
   const candidates = await prisma.property.findMany({
     where: {
       deletedAt: { not: null },
@@ -19,11 +43,13 @@ export async function purgeExpiredProperties() {
       },
       listing: {
         none: {
-          OR: [
-            { favorites: { some: {} } },
-            { inquires: { some: {} } },
-            { reports: { some: {} } },
-          ],
+          reports: {
+            some: {
+              status: {
+                in: ["PENDING", "UNDER_REVIEW"],
+              },
+            },
+          },
         },
       },
     },
@@ -72,7 +98,8 @@ export async function purgeExpiredProperties() {
         WHERE "id" = ${candidate.id}
         FOR UPDATE
       `;
-      // Lock its listings to prevent concurrent interaction inserts.
+
+      // Lock its listings to prevent concurrent interactions.
       await tx.$queryRaw`
         SELECT "id"
         FROM "Listing"
@@ -91,19 +118,38 @@ export async function purgeExpiredProperties() {
           },
           listing: {
             none: {
-              OR: [
-                { favorites: { some: {} } },
-                { inquires: { some: {} } },
-                { reports: { some: {} } },
-              ],
+              reports: {
+                some: {
+                  status: {
+                    in: ["PENDING", "UNDER_REVIEW"],
+                  },
+                },
+              },
             },
           },
         },
         include: {
+          location: {
+            select: {
+              region: true,
+              district: true,
+              area: true,
+              landmark: true,
+            },
+          },
           medias: {
             select: {
               publicId: true,
               type: true,
+            },
+          },
+          listing: {
+            select: {
+              id: true,
+              listingType: true,
+              price: true,
+              currency: true,
+              rentPeriod: true,
             },
           },
         },
@@ -111,6 +157,67 @@ export async function purgeExpiredProperties() {
 
       if (!property) {
         continue;
+      }
+
+      // Preserve historical inquiry and report records
+      // before deleting their associated listings.
+      for (const listing of property.listing) {
+        const listingSnapshot = {
+          listingId: listing.id,
+          propertyId: property.id,
+          propertyTitle: property.title,
+          listingType: listing.listingType,
+          price: listing.price.toString(),
+          currency: listing.currency,
+          rentPeriod: listing.rentPeriod,
+          location: {
+            region: property.location.region,
+            district: property.location.district,
+            area: property.location.area,
+            landmark: property.location.landmark,
+          },
+        };
+
+        // Close open inquiries before detaching them.
+        await tx.inquiry.updateMany({
+          where: {
+            listingId: listing.id,
+            status: "OPEN",
+          },
+          data: {
+            status: "CLOSED",
+            closedAt: now,
+          },
+        });
+
+        // Preserve all inquiry records independently of the listing.
+        await tx.inquiry.updateMany({
+          where: {
+            listingId: listing.id,
+          },
+          data: {
+            listingId: null,
+            sourceListingId: listing.id,
+            listingSnapshot,
+            archivedAt: now,
+            retentionExpiresAt,
+          },
+        });
+
+        // Preserve resolved and dismissed reports.
+        // Unresolved reports have already blocked this purge.
+        await tx.report.updateMany({
+          where: {
+            listingId: listing.id,
+          },
+          data: {
+            listingId: null,
+            sourceListingId: listing.id,
+            listingSnapshot,
+            archivedAt: now,
+            retentionExpiresAt,
+          },
+        });
       }
 
       // Preserve Cloudinary identifiers before media records cascade.
@@ -125,7 +232,8 @@ export async function purgeExpiredProperties() {
         queuedAssets += property.medias.length;
       }
 
-      // Delete listings first because Property -> Listing is restrictive.
+      // Delete listings after historical records have been detached.
+      // Favorites are allowed to cascade.
       await tx.listing.deleteMany({
         where: {
           propertyId: property.id,

@@ -5,7 +5,15 @@ import { v2 as cloudinary } from "cloudinary";
 
 import { AppError } from "../common/errors/AppError.js";
 import { prisma } from "../lib/prisma.js";
-import { VerificationDocumentType } from "../generated/prisma/enums.js";
+import {
+  VerificationDocumentType,
+  VerificationAuditAction,
+  VerificationAuditActorType,
+  VerificationAuditKind,
+  VerificationAuditReason,
+} from "../generated/prisma/enums.js";
+
+import { createVerificationAuditLog } from "./verification-audit.service.js";
 
 type VerificationDocumentParent =
   | {
@@ -37,7 +45,7 @@ interface UploadAndCreateVerificationDocumentParams {
   userId: string;
   docType: VerificationDocumentType;
   buffer: Buffer;
-   mimeType: string;
+  mimeType: string;
 }
 
 const allowedDocumentTypes = {
@@ -63,7 +71,6 @@ const verificationFileExtensions: Record<string, string> = {
   "image/webp": "webp",
   "application/pdf": "pdf",
 };
-
 
 const authorizeVerificationDocumentUploadInTransaction = async (
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
@@ -114,11 +121,10 @@ const authorizeVerificationDocumentUploadInTransaction = async (
   if (parent.type === "OWNERSHIP") {
     // Read the property ID so we can acquire locks in a consistent order:
     // Property first, then OwnershipVerification.
-    const initialVerification =
-      await tx.ownershipVerification.findUnique({
-        where: { id: parent.verificationId },
-        select: { propertyId: true },
-      });
+    const initialVerification = await tx.ownershipVerification.findUnique({
+      where: { id: parent.verificationId },
+      select: { propertyId: true },
+    });
 
     if (!initialVerification) {
       throw new AppError("Ownership verification not found", 404);
@@ -170,10 +176,7 @@ const authorizeVerificationDocumentUploadInTransaction = async (
     }
 
     if (verification.property.deletedAt) {
-      throw new AppError(
-        "Cannot upload documents for a deleted property",
-        404,
-      );
+      throw new AppError("Cannot upload documents for a deleted property", 404);
     }
 
     if (verification.status !== "PENDING") {
@@ -223,7 +226,6 @@ const authorizeVerificationDocumentUploadInTransaction = async (
     );
   }
 };
-
 
 /**
  * Upload a verification document to private Cloudinary storage.
@@ -311,8 +313,7 @@ export const uploadAndCreateVerificationDocument = async ({
   }
 
   // Cloudinary upload happens before opening the database transaction.
-  const uploaded = await uploadVerificationDocument({ buffer, mimeType, });
-
+  const uploaded = await uploadVerificationDocument({ buffer, mimeType });
 
   try {
     const document = await prisma.$transaction(
@@ -381,7 +382,6 @@ export const authorizeUserVerificationDocumentUpload = async (
       id: true,
       userId: true,
       status: true,
-
     },
   });
 
@@ -434,10 +434,7 @@ export const authorizeOwnershipVerificationDocumentUpload = async (
   }
 
   if (verification.property.deletedAt) {
-    throw new AppError(
-      "Cannot upload documents for a deleted property",
-      404,
-    );
+    throw new AppError("Cannot upload documents for a deleted property", 404);
   }
 
   if (verification.status !== "PENDING") {
@@ -522,12 +519,9 @@ export const uploadOwnershipVerificationDocument = async ({
   userId: string;
   docType: VerificationDocumentType;
   buffer: Buffer;
-    mimeType: string;
+  mimeType: string;
 }) => {
-  await authorizeOwnershipVerificationDocumentUpload(
-    verificationId,
-    userId,
-  );
+  await authorizeOwnershipVerificationDocumentUpload(verificationId, userId);
 
   return uploadAndCreateVerificationDocument({
     parent: {
@@ -552,12 +546,9 @@ export const uploadBusinessVerificationDocument = async ({
   userId: string;
   docType: VerificationDocumentType;
   buffer: Buffer;
-    mimeType: string;
+  mimeType: string;
 }) => {
-  await authorizeBusinessVerificationDocumentUpload(
-    verificationId,
-    userId,
-  );
+  await authorizeBusinessVerificationDocumentUpload(verificationId, userId);
 
   return uploadAndCreateVerificationDocument({
     parent: {
@@ -575,69 +566,131 @@ export const getVerificationDocumentDownloadUrl = async (
   documentId: string,
   userId: string,
   isAdmin: boolean,
+  ipAddress: string | null,
+  userAgent: string | null,
 ) => {
-  const document = await prisma.verificationDocument.findUnique({
-    where: { id: documentId },
-    include: {
-      userVerification: {
-        select: {
-          userId: true,
+  return prisma.$transaction(async (tx) => {
+    const document = await tx.verificationDocument.findUnique({
+      where: { id: documentId },
+      include: {
+        userVerification: {
+          select: {
+            id: true,
+            userId: true,
+          },
+        },
+        ownershipVerification: {
+          select: {
+            id: true,
+            submittedById: true,
+            property: {
+              select: {
+                ownerId: true,
+              },
+            },
+          },
+        },
+        businessVerification: {
+          select: {
+            id: true,
+            ownerId: true,
+          },
         },
       },
-      ownershipVerification: {
-        select: {
-          submittedById: true,
-        },
+    });
+
+    if (!document) {
+      throw new AppError("Verification document not found", 404);
+    }
+
+    let verificationKind: VerificationAuditKind;
+    let verificationId: string;
+    let subjectUserId: string;
+    let isAuthorized = isAdmin;
+
+    if (document.userVerification) {
+      verificationKind = VerificationAuditKind.USER;
+      verificationId = document.userVerification.id;
+      subjectUserId = document.userVerification.userId;
+
+      isAuthorized =
+        isAuthorized || document.userVerification.userId === userId;
+    } else if (document.ownershipVerification) {
+      verificationKind = VerificationAuditKind.OWNERSHIP;
+      verificationId = document.ownershipVerification.id;
+      subjectUserId = document.ownershipVerification.property.ownerId;
+
+      // Preserve the existing authorization rule.
+      isAuthorized =
+        isAuthorized ||
+        document.ownershipVerification.submittedById === userId;
+    } else if (document.businessVerification) {
+      verificationKind = VerificationAuditKind.BUSINESS;
+      verificationId = document.businessVerification.id;
+      subjectUserId = document.businessVerification.ownerId;
+
+      isAuthorized =
+        isAuthorized || document.businessVerification.ownerId === userId;
+    } else {
+      throw new AppError(
+        "Verification document is not linked to a verification record",
+        500,
+      );
+    }
+
+    if (!isAuthorized) {
+      throw new AppError(
+        "You are not authorized to access this verification document",
+        403,
+      );
+    }
+
+    if (!document.format) {
+      throw new AppError(
+        "Document format is unavailable for download",
+        409,
+      );
+    }
+
+    const expiresAt = Math.floor(Date.now() / 1000) + 300;
+
+    const downloadUrl = cloudinary.utils.private_download_url(
+      document.storageKey,
+      document.format,
+      {
+        resource_type: "raw",
+        type: "authenticated",
+        expires_at: expiresAt,
       },
-      businessVerification: {
-        select: {
-          ownerId: true,
-        },
+    );
+
+    await createVerificationAuditLog(
+      {
+        actorId: userId,
+        actorType: isAdmin
+          ? VerificationAuditActorType.ADMIN
+          : VerificationAuditActorType.USER,
+        subjectUserId,
+        verificationKind,
+        verificationId,
+        documentId: document.id,
+        action: VerificationAuditAction.DOCUMENT_URL_ISSUED,
+        ...(isAdmin
+          ? { reason: VerificationAuditReason.REVIEW }
+          : {}),
+        ipAddress,
+        userAgent,
       },
-    },
+      tx,
+    );
+
+    return {
+      id: document.id,
+      docType: document.docType,
+      uploadedAt: document.uploadedAt,
+      downloadUrl,
+      expiresAt,
+    };
   });
-
-  if (!document) {
-    throw new AppError("Verification document not found", 404);
-  }
-
-  const isAuthorized =
-    isAdmin ||
-    document.userVerification?.userId === userId ||
-    document.ownershipVerification?.submittedById === userId ||
-    document.businessVerification?.ownerId === userId;
-
-  if (!isAuthorized) {
-    throw new AppError(
-      "You are not authorized to access this verification document",
-      403,
-    );
-  }
-
-  if (!document.format) {
-    throw new AppError(
-      "Document format is unavailable for download",
-      409,
-    );
-  }
-
-  const expiresAt = Math.floor(Date.now() / 1000) + 300;
-
-  const downloadUrl = cloudinary.utils.private_download_url(
-    document.storageKey,
-    document.format,
-    {
-      resource_type: "raw",
-      type: "authenticated",
-      expires_at: expiresAt,
-    },
-  );
-
-  return {
-    id: document.id,
-    docType: document.docType,
-    uploadedAt: document.uploadedAt,
-    downloadUrl,
-    expiresAt,
-  };
 };
+

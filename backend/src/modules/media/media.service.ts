@@ -18,6 +18,7 @@ function getMediaType(resourceType: string): "IMAGE" | "VIDEO" {
   throw new AppError("Unsupported Cloudinary resource type", 400);
 }
 
+
 export async function createMedia(data: {
   propertyId: string;
   file: Express.Multer.File;
@@ -56,6 +57,28 @@ export async function createMedia(data: {
     const mediaType = getMediaType(uploadResult.resource_type);
 
     const media = await prisma.$transaction(async (tx) => {
+      // Lock the property row to serialize media creation
+      // against concurrent property deletion.
+      const lockedProperties = await tx.$queryRaw<
+        Array<{ id: string; deletedAt: Date | null }>
+      >`
+        SELECT "id", "deletedAt"
+        FROM "Property"
+        WHERE "id" = ${data.propertyId}
+        FOR UPDATE
+      `;
+
+      const lockedProperty = lockedProperties[0];
+
+      if (!lockedProperty) {
+        throw new AppError("Property not found", 404);
+      }
+
+      // Recheck the deletion status after acquiring the lock.
+      if (lockedProperty.deletedAt) {
+        throw new AppError("This property has been deleted", 400);
+      }
+
       if (data.isPrimary === true) {
         await tx.media.updateMany({
           where: {
@@ -101,6 +124,7 @@ export async function createMedia(data: {
     throw error;
   }
 }
+
 
 export async function getPropertyMedia(propertyId: string) {
   const property = await prisma.property.findUnique({

@@ -243,7 +243,7 @@ export const getReportById = async (
 
   if (isAdmin) {
     // An admin cannot investigate a report concerning themselves.
-    if (report.listing.property.ownerId === userId) {
+    if (report.listing?.property.ownerId === userId) {
       throw new AppError(
         "You cannot investigate a report concerning yourself",
         403,
@@ -262,15 +262,17 @@ export const getReportById = async (
     reason: report.reason,
     description: report.description,
     createdAt: report.createdAt,
-    listing: {
-      id: report.listing.id,
-      listingType: report.listing.listingType,
-      price: report.listing.price,
-      property: {
-        id: report.listing.property.id,
-        title: report.listing.property.title,
-      },
-    },
+    listing: report.listing
+      ? {
+          id: report.listing.id,
+          listingType: report.listing.listingType,
+          price: report.listing.price,
+          property: {
+            id: report.listing.property.id,
+            title: report.listing.property.title,
+          },
+        }
+      : null,
     outcome: mapReportOutcome(report.status),
   };
 };
@@ -285,7 +287,7 @@ export const getAdminReportQueue = async (
 
   const groups = await prisma.$queryRaw<
     {
-      listingId: string;
+      listingId: string | null;
       reportCount: number;
       distinctReporterCount: number;
       lowSeverityReportCount: number;
@@ -332,11 +334,26 @@ export const getAdminReportQueue = async (
   `;
 
   const listingIds = groups.map((group) => group.listingId);
+  const existingListingIds = listingIds.filter(
+    (listingId): listingId is string => listingId !== null,
+  );
+  const hasDeletedListingGroup = listingIds.some(
+    (listingId) => listingId === null,
+  );
 
-  const reports = listingIds.length
+  const reports = groups.length
     ? await prisma.report.findMany({
         where: {
-          listingId: { in: listingIds },
+          ...(existingListingIds.length > 0 && hasDeletedListingGroup
+            ? {
+                OR: [
+                  { listingId: { in: existingListingIds } },
+                  { listingId: null },
+                ],
+              }
+            : existingListingIds.length > 0
+              ? { listingId: { in: existingListingIds } }
+              : { listingId: null }),
           ...(status ? { status } : {}),
           ...(reason ? { reason } : {}),
         },
@@ -353,7 +370,7 @@ export const getAdminReportQueue = async (
       })
     : [];
 
-  const reportsByListing = new Map<string, typeof reports>();
+  const reportsByListing = new Map<string | null, typeof reports>();
 
   for (const report of reports) {
     const existing = reportsByListing.get(report.listingId) ?? [];
@@ -361,10 +378,10 @@ export const getAdminReportQueue = async (
     reportsByListing.set(report.listingId, existing);
   }
 
-  const listingDetails = listingIds.length
+  const listingDetails = existingListingIds.length
     ? await prisma.listing.findMany({
         where: {
-          id: { in: listingIds },
+          id: { in: existingListingIds },
         },
         select: {
           id: true,
@@ -390,7 +407,9 @@ export const getAdminReportQueue = async (
     ...group,
     severity:
       group.lowSeverityReportCount === group.reportCount ? "LOW" : "NORMAL",
-    listing: listingsById.get(group.listingId) ?? null,
+    listing: group.listingId
+      ? listingsById.get(group.listingId) ?? null
+      : null,
     reports: reportsByListing.get(group.listingId) ?? [],
   }));
 
@@ -425,7 +444,7 @@ export const startReportReview = async (reportId: string, adminId: string) => {
     throw new AppError("Report not found", 404);
   }
 
-  if (report.listing.property.ownerId === adminId) {
+  if (report.listing?.property.ownerId === adminId) {
     throw new AppError(
       "You cannot review a report concerning your own listing",
       403,
@@ -478,7 +497,7 @@ export const resolveReport = async (reportId: string, adminId: string) => {
     throw new AppError("Report not found", 404);
   }
 
-  if (report.listing.property.ownerId === adminId) {
+  if (report.listing?.property.ownerId === adminId) {
     throw new AppError(
       "You cannot resolve a report concerning your own listing",
       403,
@@ -531,7 +550,7 @@ export const dismissReport = async (reportId: string, adminId: string) => {
     throw new AppError("Report not found", 404);
   }
 
-  if (report.listing.property.ownerId === adminId) {
+  if (report.listing?.property.ownerId === adminId) {
     throw new AppError(
       "You cannot dismiss a report concerning your own listing",
       403,

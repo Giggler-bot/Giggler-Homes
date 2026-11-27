@@ -41,13 +41,16 @@ function closeHttpServer(): Promise<void> {
   });
 }
 
-
 async function shutdown(signal: string): Promise<void> {
   if (isShuttingDown) return;
 
   isShuttingDown = true;
 
-  console.log(`[Server] Received ${signal}. Starting graceful shutdown...`);
+  console.log(
+    `[Server] Received ${signal}. Starting graceful shutdown...`,
+  );
+
+  let shutdownCompleted = false;
 
   const forceExit = setTimeout(() => {
     console.error("[Server] Shutdown timed out. Forcing exit.");
@@ -56,47 +59,63 @@ async function shutdown(signal: string): Promise<void> {
     process.exit(1);
   }, SHUTDOWN_TIMEOUT_MS);
 
-  forceExit.unref();
-
   try {
-    // Stop scheduled jobs and wait for active jobs.
-    // Stop HTTP traffic and wait for active requests.
+    // Stop scheduled jobs and close HTTP traffic concurrently.
     const results = await Promise.allSettled([
       stopPropertyCleanupJobs(),
       closeHttpServer(),
     ]);
 
-    const failedOperations = results.filter(
-      (result) => result.status === "rejected",
-    );
+    let shutdownFailed = false;
 
-    if (failedOperations.length > 0) {
-      for (const result of failedOperations) {
-        if (result.status === "rejected") {
-          console.error(
-            "[Server] Shutdown operation failed:",
-            result.reason,
-          );
-        }
+    for (const result of results) {
+      if (result.status === "rejected") {
+        shutdownFailed = true;
+
+        console.error(
+          "[Server] Shutdown operation failed:",
+          result.reason,
+        );
       }
-
-      process.exitCode = 1;
-      return;
     }
 
-    // Disconnect Prisma after all operations have stopped.
-    await prisma.$disconnect();
+    if (shutdownFailed) {
+      // Ensure remaining HTTP connections cannot keep the process alive.
+      server.closeAllConnections();
+      process.exitCode = 1;
+    }
 
-    console.log("[Database] Prisma disconnected.");
-    console.log("[Server] Graceful shutdown completed.");
+    // Attempt database disconnection even if another shutdown
+    // operation failed.
+    try {
+      await prisma.$disconnect();
+      console.log("[Database] Prisma disconnected.");
+    } catch (error) {
+      shutdownFailed = true;
+      process.exitCode = 1;
+
+      console.error(
+        "[Database] Failed to disconnect Prisma:",
+        error,
+      );
+    }
+
+    if (!shutdownFailed) {
+      shutdownCompleted = true;
+
+      console.log("[Server] Graceful shutdown completed.");
+    }
   } catch (error) {
     console.error("[Server] Unexpected shutdown error:", error);
+
     process.exitCode = 1;
+    server.closeAllConnections();
   } finally {
-    clearTimeout(forceExit);
+    if (shutdownCompleted) {
+      clearTimeout(forceExit);
+    }
   }
 }
-
 
 server.on("error", (error) => {
   console.error("[Server] Server error:", error);
@@ -108,7 +127,10 @@ server.on("error", (error) => {
   } else {
     // The server failed to bind before background jobs started.
     void prisma.$disconnect().catch((disconnectError) => {
-      console.error("[Database] Failed to disconnect Prisma:", disconnectError);
+      console.error(
+        "[Database] Failed to disconnect Prisma:",
+        disconnectError,
+      );
     });
   }
 });
@@ -132,5 +154,8 @@ process.on("unhandledRejection", (reason) => {
 // Observe uncaught exceptions without overriding Node's default
 // behaviour of terminating the process.
 process.on("uncaughtExceptionMonitor", (error, origin) => {
-  console.error(`[Server] Uncaught exception (${origin}):`, error);
+  console.error(
+    `[Server] Uncaught exception (${origin}):`,
+    error,
+  );
 });

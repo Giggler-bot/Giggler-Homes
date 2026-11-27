@@ -32,14 +32,14 @@ export function uploadMedia(
 
 export async function deleteMediaAsset(
   publicId: string,
-  resourceType: "image" | "video",
+  resourceType: "image" | "video" | "raw"
 ) {
   const result = await cloudinary.uploader.destroy(publicId, {
     resource_type: resourceType,
   });
 
   if (result.result !== "ok" && result.result !== "not found") {
-    throw new Error("Failed to delete Cloudinary asset");
+    throw new Error(`Failed to delete Cloudinary asset: ${result.result}`);
   }
 
   return result;

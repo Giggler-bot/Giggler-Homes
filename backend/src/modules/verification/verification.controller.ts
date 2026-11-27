@@ -4,6 +4,11 @@ import * as businessVerification from "./businessVerification.service.js";
 import * as ownershipVerification from "./ownershipVerification.service.js";
 import { AppError } from "../../common/errors/AppError.js";
 
+const getAuditMetadata = (req: Request) => ({
+  ipAddress: req.ip ?? null,
+  userAgent: req.get("user-agent") ?? null,
+});
+
 // User Verification Controllers
 export const createUserVerificationController = async (
   req: Request,
@@ -62,9 +67,14 @@ export const approveUserVerificationController = async (
   req: Request<{ verificationId: string }>,
   res: Response,
 ) => {
+
+   const { ipAddress, userAgent } = getAuditMetadata(req);
+
   const verification = await userVerification.approveUserVerification(
     req.params.verificationId,
     req.user!.id,
+    ipAddress,
+    userAgent,
   );
 
   return res.status(200).json({
@@ -78,11 +88,14 @@ export const rejectUserVerificationController = async (
   res: Response,
 ) => {
   const { rejectionReason } = req.body;
+  const { ipAddress, userAgent } = getAuditMetadata(req);
 
-  const verification = await userVerification.rejectUserVerification(
+   const verification = await userVerification.rejectUserVerification(
     req.params.verificationId,
     req.user!.id,
     rejectionReason,
+    ipAddress,
+    userAgent,
   );
 
   return res.status(200).json({
@@ -150,10 +163,15 @@ export const approveOwnershipVerificationController = async (
   req: Request<{ verificationId: string }>,
   res: Response,
 ) => {
-  const verification = await ownershipVerification.approveOwnershipVerification(
-    req.params.verificationId,
-    req.user!.id,
-  );
+
+   const { ipAddress, userAgent } = getAuditMetadata(req);
+ // Approval
+const verification = await ownershipVerification.approveOwnershipVerification(
+  req.params.verificationId,
+  req.user!.id,
+  ipAddress,
+  userAgent,
+);
 
   return res.status(200).json({
     success: true,
@@ -166,12 +184,16 @@ export const rejectOwnershipVerificationController = async (
   res: Response,
 ) => {
   const { rejectionReason } = req.body;
+   const { ipAddress, userAgent } = getAuditMetadata(req);
 
-  const verification = await ownershipVerification.rejectOwnershipVerification(
-    req.params.verificationId,
-    req.user!.id,
-    rejectionReason,
-  );
+ // Rejection
+const verification = await ownershipVerification.rejectOwnershipVerification(
+  req.params.verificationId,
+  req.user!.id,
+  rejectionReason,
+  ipAddress,
+  userAgent,
+);
 
   return res.status(200).json({
     success: true,
@@ -205,10 +227,15 @@ export const getAdminOwnershipVerificationController = async (
   req: Request<{ verificationId: string }>,
   res: Response,
 ) => {
-  const verification =
-    await ownershipVerification.getAdminOwnershipVerification(
-      req.params.verificationId,
-    );
+   const { ipAddress, userAgent } = getAuditMetadata(req);
+
+ const verification =
+  await ownershipVerification.getAdminOwnershipVerification(
+    req.params.verificationId,
+    req.user!.id,
+    ipAddress,
+    userAgent,
+  );
 
   return res.status(200).json({
     success: true,
@@ -258,10 +285,16 @@ export const approveBusinessVerificationController = async (
   req: Request<{ verificationId: string }>,
   res: Response,
 ) => {
-  const verification = await businessVerification.approveBusinessVerification(
-    req.params.verificationId,
-    req.user!.id,
-  );
+
+   const { ipAddress, userAgent } = getAuditMetadata(req);
+
+  // Approval
+const verification = await businessVerification.approveBusinessVerification(
+  req.params.verificationId,
+  req.user!.id,
+  ipAddress,
+  userAgent,
+);
 
   return res.status(200).json({
     success: true,
@@ -275,11 +308,14 @@ export const rejectBusinessVerificationController = async (
 ) => {
   const { rejectionReason } = req.body;
 
-  const verification = await businessVerification.rejectBusinessVerification(
-    req.params.verificationId,
-    req.user!.id,
-    rejectionReason,
-  );
+  // Rejection
+const verification = await businessVerification.rejectBusinessVerification(
+  req.params.verificationId,
+  req.user!.id,
+  rejectionReason,
+  getAuditMetadata(req).ipAddress,
+  getAuditMetadata(req).userAgent,
+);
 
   return res.status(200).json({
     success: true,
@@ -313,8 +349,11 @@ export const getAdminBusinessVerificationController = async (
   res: Response,
 ) => {
   const verification = await businessVerification.getAdminBusinessVerification(
-    req.params.verificationId,
-  );
+  req.params.verificationId,
+  req.user!.id,
+  getAuditMetadata(req).ipAddress,
+  getAuditMetadata(req).userAgent,
+);
 
   return res.status(200).json({
     success: true,

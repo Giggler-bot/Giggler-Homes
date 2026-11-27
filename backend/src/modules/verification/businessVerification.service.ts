@@ -1,7 +1,13 @@
 import {
   BusinessType,
   VerificationStatus,
-} from "../../generated/prisma/client.js";
+  VerificationAuditAction,
+  VerificationAuditActorType,
+  VerificationAuditKind,
+  VerificationAuditReason,
+} from "../../generated/prisma/enums.js";
+
+import { createVerificationAuditLog } from "../../services/verification-audit.service.js";
 import { AppError } from "../../common/errors/AppError.js";
 import { prisma } from "../../lib/prisma.js";
 
@@ -135,38 +141,59 @@ export const getBusinessVerification = async (
 export const approveBusinessVerification = async (
   verificationId: string,
   adminId: string,
+  ipAddress: string | null,
+  userAgent: string | null,
 ) => {
-  const result = await prisma.businessVerification.updateMany({
-    where: {
-      id: verificationId,
-      status: VerificationStatus.PENDING,
-    },
-    data: {
-      status: VerificationStatus.VERIFIED,
-      reviewedBy: adminId,
-      reviewedAt: new Date(),
-      rejectionReason: null,
-    },
-  });
-
-  if (result.count === 0) {
-    const verification = await prisma.businessVerification.findUnique({
-      where: { id: verificationId },
-      select: { id: true },
+  return prisma.$transaction(async (tx) => {
+    const result = await tx.businessVerification.updateMany({
+      where: {
+        id: verificationId,
+        status: VerificationStatus.PENDING,
+      },
+      data: {
+        status: VerificationStatus.VERIFIED,
+        reviewedBy: adminId,
+        reviewedAt: new Date(),
+        rejectionReason: null,
+      },
     });
 
-    if (!verification) {
-      throw new AppError("Business verification not found", 404);
+    if (result.count === 0) {
+      const verification = await tx.businessVerification.findUnique({
+        where: { id: verificationId },
+        select: { id: true },
+      });
+
+      if (!verification) {
+        throw new AppError("Business verification not found", 404);
+      }
+
+      throw new AppError(
+        "Only pending business verifications can be approved",
+        409,
+      );
     }
 
-    throw new AppError(
-      "Only pending business verifications can be approved",
-      409,
-    );
-  }
+    const verification = await tx.businessVerification.findUniqueOrThrow({
+      where: { id: verificationId },
+    });
 
-  return prisma.businessVerification.findUniqueOrThrow({
-    where: { id: verificationId },
+    await createVerificationAuditLog(
+      {
+        actorId: adminId,
+        actorType: VerificationAuditActorType.ADMIN,
+        subjectUserId: verification.ownerId,
+        verificationKind: VerificationAuditKind.BUSINESS,
+        verificationId: verification.id,
+        action: VerificationAuditAction.APPROVE,
+        reason: VerificationAuditReason.REVIEW,
+        ipAddress,
+        userAgent,
+      },
+      tx,
+    );
+
+    return verification;
   });
 };
 
@@ -174,38 +201,59 @@ export const rejectBusinessVerification = async (
   verificationId: string,
   adminId: string,
   rejectionReason: string,
+  ipAddress: string | null,
+  userAgent: string | null,
 ) => {
-  const result = await prisma.businessVerification.updateMany({
-    where: {
-      id: verificationId,
-      status: VerificationStatus.PENDING,
-    },
-    data: {
-      status: VerificationStatus.REJECTED,
-      reviewedBy: adminId,
-      reviewedAt: new Date(),
-      rejectionReason,
-    },
-  });
-
-  if (result.count === 0) {
-    const verification = await prisma.businessVerification.findUnique({
-      where: { id: verificationId },
-      select: { id: true },
+  return prisma.$transaction(async (tx) => {
+    const result = await tx.businessVerification.updateMany({
+      where: {
+        id: verificationId,
+        status: VerificationStatus.PENDING,
+      },
+      data: {
+        status: VerificationStatus.REJECTED,
+        reviewedBy: adminId,
+        reviewedAt: new Date(),
+        rejectionReason,
+      },
     });
 
-    if (!verification) {
-      throw new AppError("Business verification not found", 404);
+    if (result.count === 0) {
+      const verification = await tx.businessVerification.findUnique({
+        where: { id: verificationId },
+        select: { id: true },
+      });
+
+      if (!verification) {
+        throw new AppError("Business verification not found", 404);
+      }
+
+      throw new AppError(
+        "Only pending business verifications can be rejected",
+        409,
+      );
     }
 
-    throw new AppError(
-      "Only pending business verifications can be rejected",
-      409,
-    );
-  }
+    const verification = await tx.businessVerification.findUniqueOrThrow({
+      where: { id: verificationId },
+    });
 
-  return prisma.businessVerification.findUniqueOrThrow({
-    where: { id: verificationId },
+    await createVerificationAuditLog(
+      {
+        actorId: adminId,
+        actorType: VerificationAuditActorType.ADMIN,
+        subjectUserId: verification.ownerId,
+        verificationKind: VerificationAuditKind.BUSINESS,
+        verificationId: verification.id,
+        action: VerificationAuditAction.REJECT,
+        reason: VerificationAuditReason.REVIEW,
+        ipAddress,
+        userAgent,
+      },
+      tx,
+    );
+
+    return verification;
   });
 };
 
@@ -274,43 +322,63 @@ export const getPendingBusinessVerifications = async (
 
 export const getAdminBusinessVerification = async (
   verificationId: string,
+  adminId: string,
+  ipAddress: string | null,
+  userAgent: string | null,
 ) => {
-  const verification = await prisma.businessVerification.findUnique({
-    where: {
-      id: verificationId,
-    },
-    include: {
-      owner: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          phone: true,
-          role: true,
+  return prisma.$transaction(async (tx) => {
+    const verification = await tx.businessVerification.findUnique({
+      where: {
+        id: verificationId,
+      },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            role: true,
+          },
+        },
+        documents: {
+          select: {
+            id: true,
+            docType: true,
+            format: true,
+            uploadedAt: true,
+          },
+        },
+        reviewer: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
         },
       },
-      documents: {
-        select: {
-          id: true,
-          docType: true,
-          format: true,
-          uploadedAt: true,
-        },
+    });
+
+    if (!verification) {
+      throw new AppError("Business verification not found", 404);
+    }
+
+    await createVerificationAuditLog(
+      {
+        actorId: adminId,
+        actorType: VerificationAuditActorType.ADMIN,
+        subjectUserId: verification.ownerId,
+        verificationKind: VerificationAuditKind.BUSINESS,
+        verificationId: verification.id,
+        action: VerificationAuditAction.VIEW_DETAILS,
+        reason: VerificationAuditReason.REVIEW,
+        ipAddress,
+        userAgent,
       },
-      reviewer: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-        },
-      },
-    },
+      tx,
+    );
+
+    return verification;
   });
-
-  if (!verification) {
-    throw new AppError("Business verification not found", 404);
-  }
-
-  return verification;
 };

@@ -59,6 +59,13 @@ export const createModerationAction = async ({
         throw new AppError("Report not found", 404);
       }
 
+      if (!initialReport.listing || !initialReport.listingId) {
+        throw new AppError(
+          "The listing associated with this report no longer exists",
+          409,
+        );
+      }
+
       const ownerId = initialReport.listing.property.ownerId;
 
       // 2. Lock the listing. This also serializes actions
@@ -95,6 +102,13 @@ export const createModerationAction = async ({
 
       if (!report) {
         throw new AppError("Report not found", 404);
+      }
+
+      if (!report.listing || !report.listingId) {
+        throw new AppError(
+          "The listing associated with this report no longer exists",
+          409,
+        );
       }
 
       if (report.listing.property.ownerId === adminId) {
@@ -362,7 +376,7 @@ export const getModerationHistory = async (
     throw new AppError("Report not found", 404);
   }
 
-  if (report.listing.property.ownerId === adminId) {
+  if (report.listing?.property.ownerId === adminId) {
     throw new AppError(
       "You cannot review moderation history concerning yourself",
       403,

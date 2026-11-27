@@ -3,6 +3,10 @@ import { prisma } from "../../lib/prisma.js";
 import {
   VerificationStatus,
   VerificationDocumentType,
+  VerificationAuditAction,
+  VerificationAuditActorType,
+  VerificationAuditKind,
+  VerificationAuditReason,
 } from "../../generated/prisma/enums.js";
 import { AppError } from "../../common/errors/AppError.js";
 import {
@@ -10,6 +14,8 @@ import {
   maskEncryptedVerificationNumber,
   decryptVerificationNumber,
 } from "../../common/security/verificationEncryption.js";
+
+import { createVerificationAuditLog } from "../../services/verification-audit.service.js";
 
 // Never expose the encrypted database value through ordinary API responses.
 const toSafeVerificationResponse = <T extends { idNumber: string }>(
@@ -99,38 +105,59 @@ export const getUserVerification = async (userId: string) => {
 export const approveUserVerification = async (
   verificationId: string,
   adminId: string,
+  ipAddress: string | null,
+  userAgent: string | null,
 ) => {
-  const result = await prisma.userVerification.updateMany({
-    where: {
-      id: verificationId,
-      status: VerificationStatus.PENDING,
-    },
-    data: {
-      status: VerificationStatus.VERIFIED,
-      reviewedAt: new Date(),
-      rejectionReason: null,
-      reviewedBy: adminId,
-    },
-  });
-
-  if (result.count === 0) {
-    const verification = await prisma.userVerification.findUnique({
-      where: { id: verificationId },
-      select: { id: true },
+  const updatedVerification = await prisma.$transaction(async (tx) => {
+    const result = await tx.userVerification.updateMany({
+      where: {
+        id: verificationId,
+        status: VerificationStatus.PENDING,
+      },
+      data: {
+        status: VerificationStatus.VERIFIED,
+        reviewedAt: new Date(),
+        rejectionReason: null,
+        reviewedBy: adminId,
+      },
     });
 
-    if (!verification) {
-      throw new AppError("User verification not found", 404);
+    if (result.count === 0) {
+      const verification = await tx.userVerification.findUnique({
+        where: { id: verificationId },
+        select: { id: true },
+      });
+
+      if (!verification) {
+        throw new AppError("User verification not found", 404);
+      }
+
+      throw new AppError(
+        "Only pending verifications can be approved",
+        409,
+      );
     }
 
-    throw new AppError(
-      "Only pending verifications can be approved",
-      409,
-    );
-  }
+    const verification = await tx.userVerification.findUniqueOrThrow({
+      where: { id: verificationId },
+    });
 
-  const updatedVerification = await prisma.userVerification.findUniqueOrThrow({
-    where: { id: verificationId },
+    await createVerificationAuditLog(
+      {
+        actorId: adminId,
+        actorType: VerificationAuditActorType.ADMIN,
+        subjectUserId: verification.userId,
+        verificationKind: VerificationAuditKind.USER,
+        verificationId: verification.id,
+        action: VerificationAuditAction.APPROVE,
+        reason: VerificationAuditReason.REVIEW,
+        ipAddress,
+        userAgent,
+      },
+      tx,
+    );
+
+    return verification;
   });
 
   return toSafeVerificationResponse(updatedVerification);
@@ -140,38 +167,59 @@ export const rejectUserVerification = async (
   verificationId: string,
   adminId: string,
   rejectionReason: string,
+  ipAddress: string | null,
+  userAgent: string | null,
 ) => {
-  const result = await prisma.userVerification.updateMany({
-    where: {
-      id: verificationId,
-      status: VerificationStatus.PENDING,
-    },
-    data: {
-      status: VerificationStatus.REJECTED,
-      reviewedAt: new Date(),
-      rejectionReason,
-      reviewedBy: adminId,
-    },
-  });
-
-  if (result.count === 0) {
-    const verification = await prisma.userVerification.findUnique({
-      where: { id: verificationId },
-      select: { id: true },
+  const updatedVerification = await prisma.$transaction(async (tx) => {
+    const result = await tx.userVerification.updateMany({
+      where: {
+        id: verificationId,
+        status: VerificationStatus.PENDING,
+      },
+      data: {
+        status: VerificationStatus.REJECTED,
+        reviewedAt: new Date(),
+        rejectionReason,
+        reviewedBy: adminId,
+      },
     });
 
-    if (!verification) {
-      throw new AppError("User verification not found", 404);
+    if (result.count === 0) {
+      const verification = await tx.userVerification.findUnique({
+        where: { id: verificationId },
+        select: { id: true },
+      });
+
+      if (!verification) {
+        throw new AppError("User verification not found", 404);
+      }
+
+      throw new AppError(
+        "Only pending verifications can be rejected",
+        409,
+      );
     }
 
-    throw new AppError(
-      "Only pending verifications can be rejected",
-      409,
-    );
-  }
+    const verification = await tx.userVerification.findUniqueOrThrow({
+      where: { id: verificationId },
+    });
 
-  const updatedVerification = await prisma.userVerification.findUniqueOrThrow({
-    where: { id: verificationId },
+    await createVerificationAuditLog(
+      {
+        actorId: adminId,
+        actorType: VerificationAuditActorType.ADMIN,
+        subjectUserId: verification.userId,
+        verificationKind: VerificationAuditKind.USER,
+        verificationId: verification.id,
+        action: VerificationAuditAction.REJECT,
+        reason: VerificationAuditReason.REVIEW,
+        ipAddress,
+        userAgent,
+      },
+      tx,
+    );
+
+    return verification;
   });
 
   return toSafeVerificationResponse(updatedVerification);
@@ -184,7 +232,6 @@ export const getAdminUserVerification = async (
   ipAddress: string | null,
   userAgent: string | null,
 ) => {
-  // First retrieve the record and commit the audit entry.
   const verification = await prisma.$transaction(async (tx) => {
     const record = await tx.userVerification.findUnique({
       where: { id: verificationId },
@@ -218,20 +265,25 @@ export const getAdminUserVerification = async (
       throw new AppError("User verification not found", 404);
     }
 
-    await tx.verificationAccessLog.create({
-      data: {
-        verificationId: record.id,
+    await createVerificationAuditLog(
+      {
+        actorId: adminId,
+        actorType: VerificationAuditActorType.ADMIN,
         subjectUserId: record.userId,
-        adminId,
+        verificationKind: VerificationAuditKind.USER,
+        verificationId: record.id,
+        action: VerificationAuditAction.VIEW_DETAILS,
+        reason: VerificationAuditReason.REVIEW,
         ipAddress,
         userAgent,
       },
-    });
+      tx,
+    );
 
     return record;
   });
 
-  // The audit transaction has committed before decryption.
+  // Decrypt only after the audit transaction has committed.
   const decryptedIdNumber = decryptVerificationNumber(
     verification.idNumber,
   );

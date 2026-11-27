@@ -87,15 +87,16 @@ export const uploadBusinessVerificationDocumentController = async (
   });
 };
 
-
-export const getVerificationDocumentController = async(
+export const getVerificationDocumentController = async (
   req: Request<{ documentId: string }>,
   res: Response,
 ) => {
-  const document = await getVerificationDocumentDownloadUrl(
+  const result = await getVerificationDocumentDownloadUrl(
     req.params.documentId,
     req.user!.id,
-    req.user!.role === "ADMIN"
+    req.user!.role === "ADMIN",
+    req.ip ?? null,
+    req.get("user-agent") ?? null,
   );
 
   res.status(200).json({

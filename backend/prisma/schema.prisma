@@ -7,6 +7,171 @@ datasource db {
   provider = "postgresql"
 }
 
+enum UserRole {
+  USER
+  OWNER
+  AGENCY
+  HOTEL
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  DEACTIVATED
+  BANNED
+}
+
+enum GhanaRegion {
+  GREATER_ACCRA
+  ASHANTI
+  CENTRAL
+  EASTERN
+  WESTERN
+  WESTERN_NORTH
+  VOLTA
+  OTI
+  NORTHERN
+  NORTH_EAST
+  SAVANNAH
+  UPPER_EAST
+  UPPER_WEST
+  BONO
+  BONO_EAST
+  AHAFO
+}
+
+enum ListingStatus {
+  DRAFT
+  PENDING_REVIEW
+  ACTIVE
+  REJECTED
+  EXPIRED
+  ARCHIVED
+  SOLD
+  RENTED
+  SUSPENDED
+  REMOVED
+  PAUSED_FOR_ACCOUNT_DELETION
+}
+
+enum ListingType {
+  RENT
+  SALE
+  SHORT_STAY
+  LEASE
+}
+
+enum RentPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum AmenityCategory {
+  SECURITY
+  UTILITIES
+  COMFORT
+  OUTDOOR
+  PARKING
+  CONNECTIVITY
+}
+
+enum InquiryStatus {
+  OPEN
+  RESPONDED
+  CLOSED
+}
+
+enum VerificationDocumentType {
+  PASSPORT
+  NATIONAL_ID
+  DRIVERS_LICENSE
+  VOTERS_ID
+  PROPERTY_DEED
+  UTILITY_BILL
+  LEASE_AGREEMENT
+  BUSINESS_REGISTRATION
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum BusinessType {
+  AGENCY
+  HOTEL
+}
+
+enum ReportStatus {
+  PENDING
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum ListingReportReason {
+  FRAUD
+  SCAM
+  MISLEADING_INFORMATION
+  DUPLICATE_LISTING
+  WRONG_PRICE
+  WRONG_LOCATION
+  ALREADY_UNAVAILABLE
+  INAPPROPRIATE_CONTENT
+  OTHER
+}
+
+enum ModerationActionType {
+  SUSPEND_LISTING
+  REMOVE_LISTING
+  RESTORE_LISTING
+  WARN_USER
+  SUSPEND_USER
+  BAN_USER
+}
+
+enum AccountDeletionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}
+
+enum VerificationAuditActorType {
+  ADMIN
+  USER
+}
+
+enum VerificationAuditKind {
+  USER
+  OWNERSHIP
+  BUSINESS
+}
+
+enum VerificationAuditAction {
+  VIEW_DETAILS
+  DOCUMENT_URL_ISSUED
+  APPROVE
+  REJECT
+}
+
+enum VerificationAuditReason {
+  REVIEW
+  APPEAL
+  DISPUTE
+  SUPPORT
+}
+
 model User {
   id              String    @id @default(uuid())
   email           String    @unique
@@ -35,15 +200,57 @@ model User {
   reviewedOwnershipVerifications  OwnershipVerification[] @relation("OwnershipVerificationReviewer")
   reviewedBusinessVerifications   BusinessVerification[]  @relation("BusinessVerificationReviewer")
 
-  verificationAccessLogs VerificationAccessLog[] @relation("VerificationAccessLogAdmin")
+  verificationAuditLogsAsActor   VerificationAuditLog[] @relation("VerificationAuditActor")
+  verificationAuditLogsAsSubject VerificationAuditLog[] @relation("VerificationAuditSubject")
+
+  releasedOwnershipPurgeHolds OwnershipVerification[] @relation("OwnershipPurgeHoldRelease")
 
   submittedReports Report[] @relation("SubmittedReports")
 
   moderationActions ModerationActions[] @relation("ModerationActions")
+  accountDeletion   AccountDeletion[]
+  authSessions      AuthSession[]
 
   @@index([role])
   @@index([status])
   @@index([deletedAt])
+}
+
+model AuthSession {
+  id         String  @id @default(uuid())
+  userId     String
+  deviceName String?
+  userAgent  String?
+  ipAddress  String?
+
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime  @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  revokeReason String?
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@index([userId])
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+model RefreshToken {
+  id        String @id @default(uuid())
+  sessionId String
+  tokenHash String @unique
+
+  expiresAt DateTime
+  usedAt    DateTime?
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  session AuthSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([expiresAt])
 }
 
 model Property {
@@ -144,10 +351,11 @@ model Listing {
   updatedAt               DateTime      @updatedAt
   deletedAt               DateTime?
 
-  property  Property   @relation(fields: [propertyId], references: [id])
-  favorites Favorite[]
-  inquires  Inquiry[]
-  reports   Report[]
+  property              Property                 @relation(fields: [propertyId], references: [id])
+  favorites             Favorite[]
+  inquires              Inquiry[]
+  reports               Report[]
+  accountDeletionPauses AccountDeletionListing[]
 
   @@index([propertyId])
   @@index([status, listingType])
@@ -180,21 +388,20 @@ model Media {
 }
 
 model MediaAssetCleanup {
-  id           String    @id @default(cuid())
-  publicId     String
-  resourceType MediaType
-  attempts     Int       @default(0)
-  lastError    String?
-  createdAt    DateTime  @default(now())
-  nextAttemptAt DateTime @default(now())
-  processedAt  DateTime?
-  lockedAt DateTime?
+  id            String    @id @default(cuid())
+  publicId      String
+  resourceType  MediaType
+  attempts      Int       @default(0)
+  lastError     String?
+  createdAt     DateTime  @default(now())
+  nextAttemptAt DateTime  @default(now())
+  processedAt   DateTime?
+  lockedAt      DateTime?
 
   @@index([processedAt, nextAttemptAt])
   @@index([lockedAt])
   @@index([publicId])
 }
-
 
 model Amenity {
   id         String            @id @default(uuid())
@@ -235,9 +442,9 @@ model Favorite {
 
 model Inquiry {
   id          String        @id @default(uuid())
-  listingId   String
-  senderId    String
-  ownerId     String
+  listingId   String?
+  senderId    String?
+  ownerId     String?
   message     String
   status      InquiryStatus @default(OPEN)
   createdAt   DateTime      @default(now())
@@ -245,15 +452,21 @@ model Inquiry {
   respondedAt DateTime?
   closedAt    DateTime?
 
-  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  sender  User    @relation("InquirySender", fields: [senderId], references: [id], onDelete: Cascade)
-  owner   User    @relation("InquiryOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  sourceListingId    String?
+  listingSnapshot    Json?
+  archivedAt         DateTime?
+  retentionExpiresAt DateTime?
+
+  listing Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  sender  User?    @relation("InquirySender", fields: [senderId], references: [id], onDelete: SetNull)
+  owner   User?    @relation("InquiryOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
   @@index([listingId])
   @@index([senderId])
   @@index([ownerId])
   @@index([status])
   @@index([createdAt])
+  @@index([retentionExpiresAt])
 }
 
 model userVerification {
@@ -273,20 +486,33 @@ model userVerification {
   reviewer User? @relation("UserVerificationReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
 }
 
-model VerificationAccessLog {
-  id             String   @id @default(cuid())
-  verificationId String
-  subjectUserId  String
-  adminId        String
-  accessedAt     DateTime @default(now())
-  ipAddress      String?
-  userAgent      String?
+model VerificationAuditLog {
+  id                        String                     @id @default(cuid())
+  actorId                   String
+  actorType                 VerificationAuditActorType
+  subjectUserId             String
+  verificationKind          VerificationAuditKind
+  verificationId            String
+  documentId                String?
+  action                    VerificationAuditAction
+  reason                    VerificationAuditReason?
+  ipAddress                 String?
+  userAgent                 String?
+  occurredAt                DateTime                   @default(now())
+  retentionExpiresAt        DateTime?
+  retentionHoldAt           DateTime?
+  retentionHoldReason       String?
+  retentionHoldById         String?
+  retentionHoldReleasedAt   DateTime?
+  retentionHoldReleasedById String?
 
-  admin User @relation("VerificationAccessLogAdmin", fields: [adminId], references: [id], onDelete: Restrict)
+  actor   User @relation("VerificationAuditActor", fields: [actorId], references: [id], onDelete: Restrict)
+  subject User @relation("VerificationAuditSubject", fields: [subjectUserId], references: [id], onDelete: Restrict)
 
-  @@index([verificationId, accessedAt])
-  @@index([subjectUserId, accessedAt])
-  @@index([adminId, accessedAt])
+  @@index([verificationId, occurredAt])
+  @@index([subjectUserId, occurredAt])
+  @@index([actorId, occurredAt])
+  @@index([retentionExpiresAt])
 }
 
 model OwnershipVerification {
@@ -306,9 +532,15 @@ model OwnershipVerification {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  submittedBy User     @relation("OwnershipVerificationSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
-  reviewer    User?    @relation("OwnershipVerificationReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  purgeHoldReleasedAt   DateTime?
+  purgeHoldReleasedById String?
+
+  property            Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  submittedBy         User     @relation("OwnershipVerificationSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
+  reviewer            User?    @relation("OwnershipVerificationReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  purgeHoldReleasedBy User?    @relation("OwnershipPurgeHoldRelease", fields: [purgeHoldReleasedById], references: [id], onDelete: SetNull)
+
+  @@index([purgeHoldReleasedAt])
 }
 
 model BusinessVerification {
@@ -351,142 +583,25 @@ model VerificationDocument {
   @@index([businessVerificationId])
 }
 
-enum UserRole {
-  USER
-  OWNER
-  AGENCY
-  HOTEL
-  ADMIN
-}
+model VerificationDocumentCleanup {
+  id            String    @id @default(cuid())
+  storageKey    String    @unique
+  attempts      Int       @default(0)
+  lastError     String?
+  createdAt     DateTime  @default(now())
+  nextAttemptAt DateTime  @default(now())
+  processedAt   DateTime?
+  lockedAt      DateTime?
 
-enum UserStatus {
-  ACTIVE
-  INACTIVE
-  SUSPENDED
-  DEACTIVATED
-  BANNED
-}
-
-enum GhanaRegion {
-  GREATER_ACCRA
-  ASHANTI
-  CENTRAL
-  EASTERN
-  WESTERN
-  WESTERN_NORTH
-  VOLTA
-  OTI
-  NORTHERN
-  NORTH_EAST
-  SAVANNAH
-  UPPER_EAST
-  UPPER_WEST
-  BONO
-  BONO_EAST
-  AHAFO
-}
-
-enum ListingStatus {
-  DRAFT
-  PENDING_REVIEW
-  ACTIVE
-  REJECTED
-  EXPIRED
-  ARCHIVED
-  SOLD
-  RENTED
-  SUSPENDED
-  REMOVED
-}
-
-enum ListingType {
-  RENT
-  SALE
-  SHORT_STAY
-  LEASE
-}
-
-enum RentPeriod {
-  DAILY
-  WEEKLY
-  MONTHLY
-  YEARLY
-}
-
-enum MediaType {
-  IMAGE
-  VIDEO
-}
-
-enum AmenityCategory {
-  SECURITY
-  UTILITIES
-  COMFORT
-  OUTDOOR
-  PARKING
-  CONNECTIVITY
-}
-
-enum InquiryStatus {
-  OPEN
-  RESPONDED
-  CLOSED
-}
-
-enum VerificationDocumentType {
-  PASSPORT
-  NATIONAL_ID
-  DRIVERS_LICENSE
-  VOTERS_ID
-  PROPERTY_DEED
-  UTILITY_BILL
-  LEASE_AGREEMENT
-  BUSINESS_REGISTRATION
-}
-
-enum VerificationStatus {
-  PENDING
-  VERIFIED
-  REJECTED
-}
-
-enum BusinessType {
-  AGENCY
-  HOTEL
-}
-
-enum ReportStatus {
-  PENDING
-  UNDER_REVIEW
-  RESOLVED
-  DISMISSED
-}
-
-enum ListingReportReason {
-  FRAUD
-  SCAM
-  MISLEADING_INFORMATION
-  DUPLICATE_LISTING
-  WRONG_PRICE
-  WRONG_LOCATION
-  ALREADY_UNAVAILABLE
-  INAPPROPRIATE_CONTENT
-  OTHER
-}
-
-enum ModerationActionType {
-  SUSPEND_LISTING
-  REMOVE_LISTING
-  RESTORE_LISTING
-  WARN_USER
-  SUSPEND_USER
-  BAN_USER
+  @@index([processedAt, nextAttemptAt])
+  @@index([lockedAt])
+  @@index([storageKey])
 }
 
 model Report {
-  id         String @id @default(uuid())
-  reporterId String
-  listingId  String
+  id         String  @id @default(uuid())
+  reporterId String?
+  listingId  String?
 
   reason      ListingReportReason
   description String?
@@ -495,8 +610,18 @@ model Report {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  reporter User    @relation("SubmittedReports", fields: [reporterId], references: [id], onDelete: Cascade)
-  listing  Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  sourceListingId           String?
+  listingSnapshot           Json?
+  archivedAt                DateTime?
+  retentionExpiresAt        DateTime?
+  retentionHoldAt           DateTime?
+  retentionHoldReason       String?
+  retentionHoldById         String?
+  retentionHoldReleasedAt   DateTime?
+  retentionHoldReleasedById String?
+
+  reporter User?    @relation("SubmittedReports", fields: [reporterId], references: [id], onDelete: SetNull)
+  listing  Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
 
   moderationAction ModerationActions[]
 
@@ -504,6 +629,7 @@ model Report {
   @@index([reporterId])
   @@index([status])
   @@index([createdAt])
+  @@index([retentionExpiresAt])
 }
 
 model ModerationActions {
@@ -529,4 +655,43 @@ model ModerationActions {
   @@index([adminId])
   @@index([actionType])
   @@index([createdAt])
+}
+
+model AccountDeletion {
+  id                 String                @id @default(cuid())
+  userId             String?
+  status             AccountDeletionStatus @default(PENDING)
+  previousUserStatus UserStatus
+
+  requestedAt  DateTime  @default(now())
+  scheduledFor DateTime
+  completedAt  DateTime?
+  cancelledAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user           User?                    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  pausedListings AccountDeletionListing[]
+
+  @@index([userId])
+  @@index([status, scheduledFor])
+}
+
+model AccountDeletionListing {
+  id                String        @id @default(cuid())
+  accountDeletionId String
+  listingId         String?
+  sourceListingId   String
+  previousStatus    ListingStatus
+  pausedAt          DateTime      @default(now())
+  restoredAt        DateTime?
+
+  accountDeletion AccountDeletion @relation(fields: [accountDeletionId], references: [id], onDelete: Cascade)
+
+  listing Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
+
+  @@unique([accountDeletionId, sourceListingId])
+  @@index([listingId])
+  @@index([accountDeletionId])
 }
